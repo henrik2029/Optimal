@@ -214,8 +214,9 @@ const S={
   logs:   DB.get('fg_logs',{}),      // {user:{date:{ex:[sets]}}}
   customEx:DB.get('fg_customEx',{}), // {user:{day:[exArr]}}
   customSplitDef:DB.get('fg_customSplit',null), // custom split day structure
+  userExInfo:DB.get('fg_userExInfo',{}), // {exName:{muscle,typicalWeight}} for custom exercises
   tab:'profile', day:null,
-  save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current);DB.set('fg_customSplit',this.customSplitDef);},
+  save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current);DB.set('fg_customSplit',this.customSplitDef);DB.set('fg_userExInfo',this.userExInfo);},
   u(){return this.current?this.users[this.current]:null},
   patch(d){if(!this.current)return;Object.assign(this.users[this.current],d);this.save()},
   // ── Log sets for exercise (name is the universal key) ──
@@ -475,7 +476,7 @@ const EX_MUSCLE={
   'Lat Pullover':'Back',
   'Lat Pulldown':'Back',
 };
-function muscleOf(ex){return EX_MUSCLE[ex]||'Compound'}
+function muscleOf(ex){return EX_MUSCLE[ex]||S.userExInfo[ex]?.muscle||'Compound'}
 
 // ─── ICONS ───
 const IC={
@@ -744,6 +745,12 @@ window.obDelEx=idx=>{const d=obCurDay();OB.dayEx[d].splice(idx,1);obRefreshTags(
 window.obAddInp=()=>{
   const inp=document.getElementById('ob-inp');if(!inp)return;
   const val=inp.value.trim();if(!val)return;
+  if(window._ede&&window._ede.exs&&window._ede.exs.includes(val)){inp.value='';return;}
+  if(!isKnownEx(val)){
+    inp.value='';
+    promptNewExercise(val,function(name){obAddEx(name);});
+    return;
+  }
   obAddEx(val);inp.value='';
 };
 window.obAddEx=ex=>{
@@ -847,6 +854,92 @@ window.saveStrengthCal=function(){
   ms['Traps']=50;
   S.patch({muscleStrength:ms, onboarded:true});
   render();
+};
+
+// ─── CUSTOM EXERCISE ONBOARDING ───
+// All known exercise names (fast lookup)
+function isKnownEx(name){
+  return !!EX_MUSCLE[name] || !!S.userExInfo[name];
+}
+
+// Show the "what muscle does this target?" popup
+// onConfirm(name) is called after user saves
+function promptNewExercise(name, onConfirm){
+  const muscles=['Chest','Back','Shoulders','Biceps','Triceps','Quads','Hamstrings','Glutes','Calves','Abs','Traps'];
+  // Pre-select based on any partial match in name
+  const nameLow=name.toLowerCase();
+  let presel='Chest';
+  if(nameLow.includes('back')||nameLow.includes('row')||nameLow.includes('pull')||nameLow.includes('lat'))presel='Back';
+  else if(nameLow.includes('shoulder')||nameLow.includes('delt')||nameLow.includes('press')||nameLow.includes('lateral'))presel='Shoulders';
+  else if(nameLow.includes('bicep')||nameLow.includes('curl'))presel='Biceps';
+  else if(nameLow.includes('tricep')||nameLow.includes('pushdown')||nameLow.includes('extension'))presel='Triceps';
+  else if(nameLow.includes('squat')||nameLow.includes('quad')||nameLow.includes('leg'))presel='Quads';
+  else if(nameLow.includes('hamstring')||nameLow.includes('deadlift')||nameLow.includes('rdl'))presel='Hamstrings';
+  else if(nameLow.includes('glute')||nameLow.includes('hip')||nameLow.includes('lunge'))presel='Glutes';
+  else if(nameLow.includes('calf')||nameLow.includes('calves'))presel='Calves';
+  else if(nameLow.includes('ab')||nameLow.includes('core')||nameLow.includes('crunch')||nameLow.includes('plank'))presel='Abs';
+  else if(nameLow.includes('trap')||nameLow.includes('shrug'))presel='Traps';
+  else if(nameLow.includes('chest')||nameLow.includes('bench')||nameLow.includes('fly')||nameLow.includes('pec'))presel='Chest';
+
+  // Store pending state
+  window._newEx={name, muscle:presel, onConfirm};
+
+  const muscleBtns=muscles.map(m=>`<button data-m="${m}" onclick="newExSelectMuscle(this)" style="padding:9px 14px;border-radius:20px;font-size:13px;font-weight:500;border:1.5px solid ${m===presel?'var(--blue)':'var(--border)'};background:${m===presel?'rgba(59,130,246,.12)':'var(--bg3)'};color:${m===presel?'var(--blue2)':'var(--text2)'}">${m}</button>`).join('');
+
+  showSheet(`<div class="m-handle"></div>
+  <div class="m-title">New Exercise</div>
+  <div style="padding:0 20px">
+    <div style="background:var(--bg3);border-radius:var(--radius3);padding:13px 15px;margin-bottom:18px;border:1px solid var(--border)">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:3px;text-transform:uppercase;letter-spacing:.6px;font-weight:600">Exercise</div>
+      <div style="font-size:16px;font-weight:600">${name}</div>
+    </div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px">What muscle does this target?</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:20px" id="new-ex-muscles">${muscleBtns}</div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px">Typical weight you lift to failure</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">
+      <input class="einp" id="new-ex-weight" type="number" inputmode="decimal" placeholder="e.g. 135" style="flex:1">
+      <span style="font-size:14px;color:var(--text3);flex-shrink:0">lbs</span>
+    </div>
+    <div style="font-size:12px;color:var(--text3);margin-bottom:20px;line-height:1.5">This helps calibrate your muscle map. Leave blank if unsure.</div>
+    <button class="log-btn" style="margin-top:0" onclick="newExConfirm()">Add Exercise</button>
+    <button style="width:100%;padding:14px;color:var(--text3);font-size:14px;background:none;border:none;margin-top:4px" onclick="closeSheet()">Cancel</button>
+    <div style="height:8px"></div>
+  </div>`);
+}
+
+window.newExSelectMuscle=function(btn){
+  window._newEx.muscle=btn.dataset.m;
+  document.querySelectorAll('#new-ex-muscles button').forEach(function(b){
+    var sel=b.dataset.m===window._newEx.muscle;
+    b.style.borderColor=sel?'var(--blue)':'var(--border)';
+    b.style.background=sel?'rgba(59,130,246,.12)':'var(--bg3)';
+    b.style.color=sel?'var(--blue2)':'var(--text2)';
+  });
+};
+
+window.newExConfirm=function(){
+  var ex=window._newEx;if(!ex)return;
+  var weight=parseFloat(document.getElementById('new-ex-weight')?.value)||0;
+  // Save to userExInfo
+  S.userExInfo[ex.name]={muscle:ex.muscle, typicalWeight:weight};
+  DB.set('fg_userExInfo',S.userExInfo);
+  // Update muscle strength based on typical weight if provided
+  if(weight>0){
+    const u=S.u();if(u){
+      const ms={...u.muscleStrength||{}};
+      // Estimate strength level: compare against rough benchmarks per muscle
+      const BENCH={Chest:135,Back:120,Shoulders:65,Biceps:35,Triceps:50,
+                   Quads:180,Hamstrings:120,Glutes:135,Calves:80,Abs:40,Traps:95};
+      const bench=BENCH[ex.muscle]||100;
+      // Map weight vs benchmark to a 0-100 strength value
+      const ratio=weight/bench;
+      const str=Math.min(100,Math.max(10,Math.round(ratio*55)));
+      ms[ex.muscle]=Math.max(ms[ex.muscle]||0,str); // only increase, never decrease
+      S.patch({muscleStrength:ms});
+    }
+  }
+  closeSheet();
+  if(ex.onConfirm)ex.onConfirm(ex.name);
 };
 
 // ─── SHELL ───
@@ -1254,7 +1347,17 @@ window.edeAddInp=function(){
   if(!inp)return;
   var val=inp.value.trim();
   if(!val)return;
-  if(!window._ede.exs.includes(val))window._ede.exs.push(val);
+  if(window._ede.exs.includes(val)){inp.value='';return;}
+  if(!isKnownEx(val)){
+    // Unknown exercise — ask user about it before adding
+    inp.value='';
+    promptNewExercise(val,function(name){
+      if(!window._ede.exs.includes(name))window._ede.exs.push(name);
+      edeRefreshList();
+    });
+    return;
+  }
+  window._ede.exs.push(val);
   inp.value='';
   edeRefreshList();
 };
@@ -1732,7 +1835,8 @@ window.exportProfile=function(){
     user:S.users[u],
     logs:S.logs[u]||{},
     customEx:S.customEx[u]||{},
-    customSplitDef:S.customSplitDef||null
+    customSplitDef:S.customSplitDef||null,
+    userExInfo:S.userExInfo||{}
   };
   const json=JSON.stringify(data,null,2);
   const blob=new Blob([json],{type:'application/json'});
@@ -1787,6 +1891,7 @@ window.doImportProfile=function(input){
       if(data.logs)S.logs[u]=data.logs;
       if(data.customEx)S.customEx[u]=data.customEx;
       if(data.customSplitDef)S.customSplitDef=data.customSplitDef;
+      if(data.userExInfo)S.userExInfo=data.userExInfo;
       S.current=u;
       S.save();
       closeSheet();
