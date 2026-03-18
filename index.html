@@ -318,34 +318,38 @@ const SPLITS={
 // ─── EXERCISE PRESETS (expanded) ───
 // Groups by muscle/movement type
 const ALL_EX={
-  Chest:['Bench Press','Incline Bench Press','Decline Bench Press','Incline Smith Machine','DB Flat Press',
-    'DB Incline Press','DB Decline Press','Chest Fly','Incline DB Fly','Cable Fly','Low Cable Fly',
-    'High Cable Fly','Pec Deck','Cable Crossover','Chest Dips','Push-Ups','Close Grip Push-Ups',
-    'Svend Press','Landmine Press'],
-  Back:['Pull-Ups','Chin-Ups','Wide Grip Pull-Ups','Neutral Grip Pull-Ups','Assisted Pull-Ups',
-    'Lat Pulldown','Wide Grip Pulldown','Neutral Grip Pulldown','Barbell Row','Pendlay Row',
-    'Dumbbell Row','Single Arm Row','Seated Cable Row','Wide Row','T-Bar Row','Meadows Row',
-    'Chest Supported Row','Machine Row','Straight Arm Pulldown','Deadlift','Rack Pull','Sumo Deadlift'],
-  Shoulders:['Overhead Press','Seated DB Press','Arnold Press','Machine Shoulder Press','Smith Machine OHP',
-    'Lateral Raises','Cable Lateral Raise','Machine Lateral Raise','Front Raises','Cable Front Raise',
-    'Rear Delt Fly','Reverse Pec Deck','Face Pulls','Band Pull-Apart','Upright Row','Shrugs'],
-  Biceps:['Barbell Curl','EZ Bar Curl','Dumbbell Curl','Hammer Curl','Incline DB Curl',
-    'Preacher Curl','Machine Curl','Cable Curl','Spider Curl','Concentration Curl',
-    'Cross Body Curl','Reverse Curl','Zottman Curl'],
-  Triceps:['Tricep Pushdown','Cable Overhead Tricep Ext','Skull Crushers','EZ Bar Skull Crusher',
-    'Close Grip Bench','Tricep Dips','Overhead DB Ext','Kickbacks','Diamond Push-Ups',
-    'JM Press','Tate Press','Machine Tricep Ext'],
-  Legs:['Back Squat','Front Squat','Goblet Squat','Box Squat','Pause Squat','Smith Machine Squat',
-    'Romanian Deadlift','Stiff Leg Deadlift','Leg Press','Hack Squat','Belt Squat',
-    'Leg Extension','Leg Curl','Seated Leg Curl','Nordic Curl','GHR',
-    'Walking Lunges','Reverse Lunges','Bulgarian Split Squat','Step Ups','Single Leg Press',
-    'Hip Thrust','Glute Bridge','Cable Kickback','Donkey Kicks',
-    'Calf Raises','Seated Calf Raise','Single Leg Calf Raise','Leg Press Calf Raise'],
-  Core:['Plank','Side Plank','Ab Wheel','Cable Crunch','Machine Crunch','Crunches',
-    'Leg Raises','Hanging Leg Raise','Toes to Bar','Russian Twists','Pallof Press',
-    'Dead Bug','Dragon Flag','L-Sit','Hollow Hold','Weighted Sit-Up'],
-  Cardio:['Treadmill','Stairmaster','Elliptical','Rowing Machine','Assault Bike','Jump Rope',
-    'Box Jumps','Battle Ropes','Sled Push','Farmers Walk']
+  Chest:[
+    'Bench Press','Incline Smith Machine','Incline Bench Press',
+    'Pec Deck','Cable Fly','Chest Dips','DB Flat Press'
+  ],
+  Back:[
+    'Lat Pulldown','Upper Back Row','Mid Back Row','Single Arm Row',
+    'Lat Pullover','Shrugs','Pull-Ups'
+  ],
+  Shoulders:[
+    'Shoulder Press','Lateral Raises','Cable Lateral Raise',
+    'Face Pulls','Rear Delt Fly','Arnold Press'
+  ],
+  Biceps:[
+    'Preacher Curl','Hammer Curl','Barbell Curl','Incline DB Curl',
+    'Cable Curl','EZ Bar Curl'
+  ],
+  Triceps:[
+    'Cable Overhead Tricep Ext','Tricep Pushdown','Skull Crushers',
+    'Close Grip Bench','Tricep Dips','Overhead DB Ext'
+  ],
+  Legs:[
+    'Leg Press','Hack Squat','Leg Extension','Hamstring Curl',
+    'Machine Abductor','Machine Adductor','Back Squat',
+    'Romanian Deadlift','Hip Thrust','Calf Raises'
+  ],
+  Core:[
+    'Cable Crunch','Leg Raises','Ab Wheel',
+    'Plank','Hanging Leg Raise','Russian Twists'
+  ],
+  Cardio:[
+    'Treadmill','Stairmaster','Rowing Machine','Assault Bike','Jump Rope'
+  ]
 };
 
 // Day → categories mapping for smart suggestions
@@ -449,7 +453,14 @@ const EX_MUSCLE={
   'Russian Twists':'Abs','Pallof Press':'Abs','Dead Bug':'Abs','Dragon Flag':'Abs',
   'Weighted Sit-Up':'Abs',
   // Traps
-  'Face Pulls':'Shoulders','Barbell Row':'Back',
+  'Face Pulls':'Rear Delts','Barbell Row':'Back','Shrugs':'Traps',
+  // New named exercises
+  'Upper Back Row':'Back','Mid Back Row':'Back',
+  'Shoulder Press':'Front Delts',
+  'Hamstring Curl':'Hamstrings',
+  'Machine Abductor':'Glutes','Machine Adductor':'Hamstrings',
+  'Lat Pullover':'Back',
+  'Lat Pulldown':'Back',
 };
 function muscleOf(ex){return EX_MUSCLE[ex]||'Compound'}
 
@@ -704,15 +715,12 @@ window.obSaveProfile=()=>{
 window.obSaveSplit=()=>{
   const sel=document.querySelector('.split-opt.on');
   const sn=sel?.dataset.sn||'Push Pull Legs';
-  // If split changed, clear all custom exercises so new split defaults are clean
-  if(S.u()?.split !== sn && S.current){
-    S.customEx[S.current]={};
-    DB.set('fg_customEx', S.customEx);
-  }
+  // Never wipe customEx — keep all saved days so switching back restores them
   S.patch({split:sn});
   const split=SPLITS[sn];
   OB.days=(split?.days||[]).filter(d=>d!=='Rest');
-  OB.dayEx={};OB.days.forEach(d=>{OB.dayEx[d]=[...(split?.ex?.[d]||[])]});
+  // Pre-fill from saved exercises so the wizard shows what the user already set
+  OB.dayEx={};OB.days.forEach(d=>{OB.dayEx[d]=[...S.getDayEx(d)]});
   obAdv();
 };
 
@@ -946,9 +954,15 @@ window.openMuscleDetail=m=>{
 };
 
 function analyticsCard(){
-  const u=S.u();
-  // Compute real volume per muscle from logs
-  const ms=['Chest','Back','Shoulders','Quads','Hamstrings','Biceps','Triceps','Calves','Abs'];
+  // Volume = total lbs lifted (weight × reps) per muscle this week
+  // % shown = how close you are to a good weekly target for that muscle
+  // Targets account for muscle size: big muscles (legs, back, chest) need more volume
+  const TARGETS={
+    'Chest':8000,'Back':10000,'Quads':12000,'Hamstrings':8000,
+    'Front Delts':4000,'Rear Delts':3000,'Biceps':4000,'Triceps':4000,
+    'Glutes':7000,'Calves':3000,'Abs':2500,'Traps':3000
+  };
+  const ms=['Chest','Back','Quads','Hamstrings','Biceps','Triceps','Calves','Abs'];
   const wk=S.weekLogs();
   const muscleVol={};
   wk.forEach(([,day])=>Object.entries(day).forEach(([ex,sets])=>{
@@ -956,16 +970,23 @@ function analyticsCard(){
     if(!muscleVol[m])muscleVol[m]=0;
     sets.forEach(s=>muscleVol[m]+=(+s.w||0)*(+s.r||0));
   }));
-  const maxV=Math.max(1,...Object.values(muscleVol));
-  const rows=ms.map(m=>{const v=muscleVol[m]||0;const pct=Math.round((v/maxV)*100)||0;return{n:m,v:pct,raw:v}});
+  const rows=ms.map(m=>{
+    const v=muscleVol[m]||0;
+    const target=TARGETS[m]||8000;
+    const pct=Math.min(100,Math.round((v/target)*100));
+    return{n:m,v:pct,raw:v,target};
+  });
   const total=rows.reduce((s,r)=>s+r.raw,0);
   return`<div class="card card-pad" style="margin-bottom:10px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
       <div style="font-size:15px;font-weight:500">Volume by Muscle</div>
       <span class="trend-up">${wk.length} sessions this week</span>
     </div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.4">
+      % of a good weekly target (weight × reps). 100% = solid weekly volume for that muscle.
+    </div>
     ${total===0?`<div style="font-size:13px;color:var(--text3);padding:8px 0">Log some workouts to see your volume here.</div>`:
-    rows.map(m=>`<div class="prog-wrap"><div class="prog-labels"><span>${m.n}</span><span>${m.v}%</span></div><div class="prog-bar"><div class="prog-fill" style="width:${m.v}%"></div></div></div>`).join('')}
+    rows.map(m=>`<div class="prog-wrap"><div class="prog-labels"><span>${m.n}</span><span style="color:${m.v>=80?'var(--green)':m.v>=40?'var(--blue2)':'var(--text3)'}">${m.v}%</span></div><div class="prog-bar"><div class="prog-fill" style="width:${m.v}%;background:${m.v>=80?'var(--green)':m.v>=40?'var(--blue)':'var(--yellow)'}"></div></div></div>`).join('')}
   </div>`;
 }
 
@@ -1024,8 +1045,9 @@ window.openSplitPicker=()=>{
   <div style="height:20px"></div>`);
 };
 window.pickSplit=el=>{
-  const newSplit=el.dataset.sn;const oldSplit=S.u()?.split;
-  if(newSplit!==oldSplit&&S.current){S.customEx[S.current]={};S.save();}
+  const newSplit=el.dataset.sn;
+  // Never delete customEx entries — keep all days across all splits so switching
+  // back always restores saved exercises. getDayEx ignores days not in current split.
   S.patch({split:newSplit});closeSheet();renderTab();
 };
 
@@ -1332,11 +1354,14 @@ window.logEx=(ex,idx)=>{
     if(w>0&&r>0)sets.push({w,r});i++;
   }
   if(!sets.length){alert('Enter weight & reps first!');return}
+  // Get old PR BEFORE saving so we can compare properly
+  const oldPR=S.getPR(ex);
   S.logSets(ex,sets);
   // Update muscle strength
   const m=muscleOf(ex);if(m!=='Compound'){const u=S.u();const ms={...u.muscleStrength||{}};ms[m]=Math.min(100,(ms[m]||50)+2);S.patch({muscleStrength:ms});}
-  const pr=S.getPR(ex);const newBest=sets.reduce((b,s)=>Math.max(b,s.w*s.r),0);
-  const isPR=pr&&Math.abs(pr.v-newBest)<0.01&&newBest>0;
+  const newBest=sets.reduce((b,s)=>Math.max(b,s.w*s.r),0);
+  // True PR: logged something AND it beats the previous best (or is first ever)
+  const isPR=newBest>0&&(!oldPR||newBest>oldPR.v);
   showSheet(`<div class="m-handle"></div>
   <div style="text-align:center;padding:0 20px">
     ${isPR?`<div style="font-size:52px;margin:16px 0">🏆</div><div class="pr-badge" style="font-size:16px;padding:8px 20px;margin-bottom:12px;display:inline-flex">NEW RECORD!</div>`:`<div style="font-size:48px;margin:16px 0">✅</div>`}
@@ -1452,7 +1477,7 @@ window.redoSetup=()=>{
     <div style="font-size:48px;margin:16px 0">⚠️</div>
     <div class="m-title" style="padding:0;text-align:center;margin-bottom:8px">Redo Setup?</div>
     <div style="font-size:14px;color:var(--text2);margin-bottom:28px;line-height:1.6">This restarts the onboarding wizard. Your workout history won't be deleted — just your split and exercise config will be reset.</div>
-    <button class="log-btn" style="background:var(--red);border:none;margin-top:0" onclick="closeSheet();if(S.current){S.customEx[S.current]={};DB.set('fg_customEx',S.customEx);}S.patch({onboarded:false});render()">Yes, Redo Setup</button>
+    <button class="log-btn" style="background:var(--red);border:none;margin-top:0" onclick="closeSheet();S.patch({onboarded:false});render()">Yes, Redo Setup</button>
     <button style="width:100%;padding:15px;font-size:15px;color:var(--text3);margin-top:8px;background:none;border:none" onclick="closeSheet()">Cancel</button>
     <div style="height:8px"></div>
   </div>`);
