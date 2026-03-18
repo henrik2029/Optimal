@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Forge</title>
+<title>Optimal</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
@@ -530,7 +530,7 @@ function renderAuth(root){
   // Auto-open signup tab when no accounts exist yet
   const noUsers=Object.keys(S.users).length===0;
   const d=document.createElement('div');d.className='auth-wrap fade-in';
-  d.innerHTML=`<div class="auth-logo">FORGE</div>
+  d.innerHTML=`<div class="auth-logo">OPTIMAL</div>
   <div class="auth-tag">Build · Track · Dominate</div>
   <div class="auth-card">
     <div class="auth-tabs">
@@ -542,6 +542,7 @@ function renderAuth(root){
       <div class="afield"><label>Password</label><input id="l-p" type="password" placeholder="••••••••" autocomplete="current-password"></div>
       <button class="btn-blue" onclick="doLogin()">Log In</button>
       <div class="auth-err" id="err1"></div>
+      <button onclick="openForgotPassword()" style="width:100%;background:none;border:none;color:var(--text3);font-size:13px;padding:10px 0;margin-top:2px">Forgot password?</button>
     </div>
     <div id="form-signup" style="display:${noUsers?'block':'none'}">
       <div class="afield">
@@ -619,7 +620,7 @@ function drawOB(){
 
   if(OB.step===0){
     // Welcome
-    body=`<div class="ob-snum">Welcome to Forge</div>
+    body=`<div class="ob-snum">Welcome to Optimal</div>
     <div class="ob-title">LET'S GET YOU SET UP</div>
     <div class="ob-sub">Quick 2-min setup to personalise everything for you.</div>
     <div style="display:flex;flex-direction:column;gap:12px">
@@ -657,7 +658,7 @@ function drawOB(){
     <div class="ob-f"><div class="ob-lbl">Lifting Level</div></div>
     <div class="ob-chips" id="ob-lvl">${['Beginner','Intermediate','Advanced','Custom'].map(l=>`<div class="ob-chip${u.level===l?' on':''}" onclick="obChip(this,'ob-lvl')">${l}</div>`).join('')}</div>
     <div class="ob-f" style="margin-top:4px"><div class="ob-lbl">Fitness Goal</div></div>
-    <div class="ob-chips" id="ob-goal">${['Strength','Hypertrophy','Cutting','Maintenance'].map(g=>`<div class="ob-chip${u.goal===g?' on':''}" onclick="obChip(this,'ob-goal')">${g}</div>`).join('')}</div>`;
+    <div class="ob-chips" id="ob-goal">${['Bulking','Hypertrophy','Cutting','Maintenance'].map(g=>`<div class="ob-chip${u.goal===g?' on':''}" onclick="obChip(this,'ob-goal')">${g}</div>`).join('')}</div>`;
     foot=`<button class="ob-next" onclick="obSaveProfile()">Continue →</button><button class="ob-skip" onclick="obAdv()">Skip for now</button>`;
   }
   else if(OB.step===2){
@@ -1507,7 +1508,7 @@ window.finishWorkout=()=>{
   <div style="padding:0 20px;text-align:center">
     <div style="font-size:56px;margin:16px 0">🔥</div>
     <div class="m-title" style="padding:0;text-align:center;margin-bottom:8px">Workout Complete!</div>
-    <div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.6">Consistency forges champions.</div>
+    <div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.6">Consistency is the foundation of progress.</div>
     <div style="background:var(--bg3);border-radius:11px;padding:14px;border:1px solid var(--border);margin-bottom:20px;text-align:left">
       <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text3)">Day</span><strong>${S.day}</strong></div>
       <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:14px"><span style="color:var(--text3)">All-time sessions</span><strong>${total}</strong></div>
@@ -1590,7 +1591,28 @@ function buildSettings(el){
         <div style="color:var(--text3)">${IC.chevR}</div>
       </div>
     </div>
-    <button class="logout-btn" style="margin-top:12px" onclick="doLogout()">Log Out</button>
+  </div>
+  <div class="section">
+    <div class="sec-lbl">Data</div>
+    <div class="s-group">
+      <div class="s-row" onclick="exportProfile()">
+        <div class="s-icon" style="background:rgba(34,197,94,.1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </div>
+        <div class="s-txt"><div class="s-lbl">Export Profile</div><div class="s-sub">Download your data as a file</div></div>
+        <div style="color:var(--text3)">${IC.chevR}</div>
+      </div>
+      <div class="s-row" onclick="importProfile()">
+        <div class="s-icon" style="background:rgba(59,130,246,.1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="var(--blue2)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/><path d="M12 3v12"/><polyline points="17 8 12 3 7 8"/></svg>
+        </div>
+        <div class="s-txt"><div class="s-lbl">Import Profile</div><div class="s-sub">Load data from a file</div></div>
+        <div style="color:var(--text3)">${IC.chevR}</div>
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <button class="logout-btn" style="margin-top:0" onclick="doLogout()">Log Out</button>
   </div>`;
 }
 
@@ -1650,7 +1672,7 @@ window.openEditProfile=()=>{
   <div class="ef"><div class="elbl">Lifting Level</div></div>
   <div class="cgrid" id="cg-lvl">${['Beginner','Intermediate','Advanced','Custom'].map(l=>`<div class="cchip${u.level===l?' on':''}" onclick="cchipPick(this,'cg-lvl')">${l}</div>`).join('')}</div>
   <div class="ef" style="margin-top:4px"><div class="elbl">Fitness Goal</div></div>
-  <div class="cgrid" id="cg-goal">${['Strength','Hypertrophy','Cutting','Maintenance'].map(g=>`<div class="cchip${u.goal===g?' on':''}" onclick="cchipPick(this,'cg-goal')">${g}</div>`).join('')}</div>
+  <div class="cgrid" id="cg-goal">${['Bulking','Hypertrophy','Cutting','Maintenance'].map(g=>`<div class="cchip${u.goal===g?' on':''}" onclick="cchipPick(this,'cg-goal')">${g}</div>`).join('')}</div>
   <button class="save-btn" onclick="saveProfile()">Save Changes</button>
   <div style="height:20px"></div>`);
 };
@@ -1667,6 +1689,113 @@ window.saveProfile=()=>{
   const goal=document.querySelector('#cg-goal .cchip.on')?.textContent||S.u().goal;
   S.patch({name,birthday:document.getElementById('ep-bday')?.value||'',height,heightUnit,weight,weightUnit,level,goal});
   closeSheet();renderTab();
+};
+
+// ─── FORGOT PASSWORD ───
+window.openForgotPassword=function(){
+  showSheet(`<div class="m-handle"></div>
+  <div class="m-title">Forgot Password?</div>
+  <div style="padding:0 20px">
+    <div style="font-size:14px;color:var(--text2);line-height:1.7;margin-bottom:20px">
+      Enter your username and we'll show you a hint. Since Optimal stores data locally, there's no email reset — but you can view your password hint if you set one.
+    </div>
+    <div class="ef"><div class="elbl">Username</div>
+      <input class="einp" id="fp-u" placeholder="your_username" autocapitalize="none" spellcheck="false">
+    </div>
+    <button class="log-btn" style="margin-top:8px" onclick="doForgotPassword()">Look Up</button>
+    <div class="auth-err" id="fp-err" style="margin-top:10px"></div>
+    <div id="fp-result" style="display:none;margin-top:16px;background:var(--bg3);border-radius:var(--radius3);padding:16px;border:1px solid var(--border)"></div>
+    <div style="height:12px"></div>
+  </div>`);
+};
+
+window.doForgotPassword=function(){
+  const u=document.getElementById('fp-u')?.value.trim().toLowerCase();
+  if(!u){document.getElementById('fp-err').textContent='Enter your username';return;}
+  if(!S.users[u]){document.getElementById('fp-err').textContent='Username not found';return;}
+  document.getElementById('fp-err').textContent='';
+  const user=S.users[u];
+  const hint=user.pwHint||null;
+  const res=document.getElementById('fp-result');
+  res.style.display='block';
+  res.innerHTML='<div style="font-size:13px;font-weight:600;margin-bottom:6px">Account found: '+user.name+'</div>'
+    +(hint?'<div style="font-size:13px;color:var(--text2)">Password hint: <strong>'+hint+'</strong></div>'
+          :'<div style="font-size:13px;color:var(--text3)">No password hint was set for this account.</div>');
+};
+
+// ─── EXPORT / IMPORT ───
+window.exportProfile=function(){
+  const u=S.current;if(!u)return;
+  const data={
+    version:1,
+    exportedAt:new Date().toISOString(),
+    user:S.users[u],
+    logs:S.logs[u]||{},
+    customEx:S.customEx[u]||{},
+    customSplitDef:S.customSplitDef||null
+  };
+  const json=JSON.stringify(data,null,2);
+  const blob=new Blob([json],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download='optimal-profile-'+u+'-'+new Date().toISOString().slice(0,10)+'.json';
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);URL.revokeObjectURL(url);
+  showSheet(`<div class="m-handle"></div>
+  <div style="padding:20px;text-align:center">
+    <div style="font-size:48px;margin:16px 0">📦</div>
+    <div class="m-title" style="padding:0;text-align:center;margin-bottom:8px">Profile Exported!</div>
+    <div style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:24px">
+      Your profile file has been downloaded. To use it on another device, open Optimal there and tap <strong>Import Profile</strong> in Settings.
+    </div>
+    <button onclick="closeSheet()" class="log-btn" style="margin-top:0">Done</button>
+    <div style="height:12px"></div>
+  </div>`);
+};
+
+window.importProfile=function(){
+  showSheet(`<div class="m-handle"></div>
+  <div class="m-title">Import Profile</div>
+  <div style="padding:0 20px">
+    <div style="font-size:14px;color:var(--text2);line-height:1.6;margin-bottom:20px">
+      Select an Optimal profile file (.json) exported from another device. Your workouts and settings will be restored.
+    </div>
+    <div style="background:var(--bg3);border:2px dashed var(--border2);border-radius:var(--radius);padding:28px 20px;text-align:center;margin-bottom:16px">
+      <div style="font-size:32px;margin-bottom:10px">📂</div>
+      <div style="font-size:14px;color:var(--text2);margin-bottom:14px">Tap to select your profile file</div>
+      <input type="file" id="import-file" accept=".json" onchange="doImportProfile(this)" style="position:absolute;opacity:0;width:100%;height:100%;top:0;left:0;cursor:pointer">
+      <button onclick="document.getElementById('import-file').click()" class="log-btn" style="margin-top:0;width:auto;padding:12px 28px;display:inline-block">Choose File</button>
+    </div>
+    <div class="auth-err" id="import-err"></div>
+    <div style="height:12px"></div>
+  </div>`);
+};
+
+window.doImportProfile=function(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.version||!data.user||!data.user.username){
+        document.getElementById('import-err').textContent='Invalid file — not an Optimal profile.';return;
+      }
+      const u=data.user.username;
+      // Restore user data
+      S.users[u]=data.user;
+      if(data.logs)S.logs[u]=data.logs;
+      if(data.customEx)S.customEx[u]=data.customEx;
+      if(data.customSplitDef)S.customSplitDef=data.customSplitDef;
+      S.current=u;
+      S.save();
+      closeSheet();
+      render();
+    }catch(err){
+      document.getElementById('import-err').textContent='Could not read file. Make sure it is a valid Optimal export.';
+    }
+  };
+  reader.readAsText(file);
 };
 
 // ─── WEEKLY SUMMARY ───
