@@ -213,8 +213,9 @@ const S={
   theme:  DB.get('fg_theme','dark'),
   logs:   DB.get('fg_logs',{}),      // {user:{date:{ex:[sets]}}}
   customEx:DB.get('fg_customEx',{}), // {user:{day:[exArr]}}
+  customSplitDef:DB.get('fg_customSplit',null), // custom split day structure
   tab:'profile', day:null,
-  save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current)},
+  save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current);DB.set('fg_customSplit',this.customSplitDef);},
   u(){return this.current?this.users[this.current]:null},
   patch(d){if(!this.current)return;Object.assign(this.users[this.current],d);this.save()},
   // ── Log sets for exercise (name is the universal key) ──
@@ -250,7 +251,7 @@ const S={
     // Always read from the live in-memory object (setDayEx updates it directly)
     const cx=this.customEx[this.current]||{};
     if(cx[day]!==undefined)return [...cx[day]];
-    return [...(SPLITS[u.split||'Push Pull Legs']?.ex?.[day]||[])];
+    return [...(getActiveSplit(u.split||'Push Pull Legs')?.ex?.[day]||[])];
   },
   setDayEx(day,arr){
     if(!this.current)return;
@@ -270,7 +271,7 @@ const S={
   // ── All exercises currently in ANY day's list ──
   allDayExercises(){
     const u=this.u();if(!u)return[];
-    const split=SPLITS[u.split||'Push Pull Legs'];
+    const split=getActiveSplit(u.split||'Push Pull Legs');
     const days=split?.days||[];
     const all=new Set();
     days.forEach(day=>{this.getDayEx(day).forEach(e=>all.add(e))});
@@ -314,6 +315,18 @@ const SPLITS={
     'Day 3':['Back Squat','Deadlift','Calf Raises']
   }}
 };
+
+// Returns the active split definition, merging customSplitDef if Custom is selected
+function getActiveSplit(sName){
+  if(sName==='Custom'&&S.customSplitDef){
+    // Build ex map from saved customEx for this user
+    const cx=S.customEx[S.current]||{};
+    const ex={};
+    (S.customSplitDef.days||[]).forEach(d=>{if(d!=='Rest')ex[d]=cx[d]||[];});
+    return{days:S.customSplitDef.days, ex};
+  }
+  return SPLITS[sName]||SPLITS['Push Pull Legs'];
+}
 
 // ─── EXERCISE PRESETS (expanded) ───
 // Groups by muscle/movement type
@@ -453,10 +466,10 @@ const EX_MUSCLE={
   'Russian Twists':'Abs','Pallof Press':'Abs','Dead Bug':'Abs','Dragon Flag':'Abs',
   'Weighted Sit-Up':'Abs',
   // Traps
-  'Face Pulls':'Rear Delts','Barbell Row':'Back','Shrugs':'Traps',
+  'Face Pulls':'Shoulders','Barbell Row':'Back','Shrugs':'Traps',
   // New named exercises
   'Upper Back Row':'Back','Mid Back Row':'Back',
-  'Shoulder Press':'Front Delts',
+  'Shoulder Press':'Shoulders',
   'Hamstring Curl':'Hamstrings',
   'Machine Abductor':'Glutes','Machine Adductor':'Hamstrings',
   'Lat Pullover':'Back',
@@ -533,7 +546,7 @@ function renderAuth(root){
     <div id="form-signup" style="display:${noUsers?'block':'none'}">
       <div class="afield">
         <label>Display Name</label>
-        <input id="s-n" type="text" placeholder="e.g. Alex Johnson" autocapitalize="words">
+        <input id="s-n" type="text" placeholder="e.g. Alex" autocapitalize="words">
         <div style="font-size:11px;color:var(--text3);margin-top:5px">This is how your name appears in the app</div>
       </div>
       <div class="afield">
@@ -581,7 +594,7 @@ let OB={step:0,days:[],dayEx:{}};
 
 function startOnboarding(){
   OB.step=0;OB.dayEx={};
-  const split=SPLITS[S.u()?.split||'Push Pull Legs'];
+  const sn=S.u()?.split||'Push Pull Legs';const split=getActiveSplit(sn);
   OB.days=(split?.days||[]).filter(d=>d!=='Rest');
   // Pre-fill from user's CURRENT saved exercises (not bare split defaults)
   // so redo-setup shows what they actually have, not factory defaults
@@ -623,7 +636,7 @@ function drawOB(){
     body=`<div class="ob-snum">Step 1 of ${totalSteps}</div>
     <div class="ob-title">YOUR PROFILE</div>
     <div class="ob-sub">Tell us about yourself.</div>
-    <div class="ob-f"><div class="ob-lbl">Your Name</div><input class="ob-inp" id="ob-name" value="${u.name||''}" placeholder="e.g. Alex Johnson" autocapitalize="words"></div>
+    <div class="ob-f"><div class="ob-lbl">Your Name</div><input class="ob-inp" id="ob-name" value="${u.name||''}" placeholder="e.g. Alex" autocapitalize="words"></div>
     <div class="ob-f"><div class="ob-lbl">Birthday</div><input class="ob-inp" id="ob-bday" type="date" value="${u.birthday||''}"></div>
     <div class="ob-f">
       <div class="ob-lbl">Height</div>
@@ -717,7 +730,7 @@ window.obSaveSplit=()=>{
   const sn=sel?.dataset.sn||'Push Pull Legs';
   // Never wipe customEx — keep all saved days so switching back restores them
   S.patch({split:sn});
-  const split=SPLITS[sn];
+  const split=getActiveSplit(sn);
   OB.days=(split?.days||[]).filter(d=>d!=='Rest');
   // Pre-fill from saved exercises so the wizard shows what the user already set
   OB.dayEx={};OB.days.forEach(d=>{OB.dayEx[d]=[...S.getDayEx(d)]});
@@ -958,11 +971,10 @@ function analyticsCard(){
   // % shown = how close you are to a good weekly target for that muscle
   // Targets account for muscle size: big muscles (legs, back, chest) need more volume
   const TARGETS={
-    'Chest':8000,'Back':10000,'Quads':12000,'Hamstrings':8000,
-    'Front Delts':4000,'Rear Delts':3000,'Biceps':4000,'Triceps':4000,
-    'Glutes':7000,'Calves':3000,'Abs':2500,'Traps':3000
+    'Chest':8000,'Back':10000,'Shoulders':7000,'Quads':12000,'Hamstrings':8000,
+    'Biceps':4000,'Triceps':4000,'Glutes':7000,'Calves':3000,'Abs':2500,'Traps':3000
   };
-  const ms=['Chest','Back','Quads','Hamstrings','Biceps','Triceps','Calves','Abs'];
+  const ms=['Chest','Back','Shoulders','Quads','Hamstrings','Biceps','Triceps','Calves','Abs'];
   const wk=S.weekLogs();
   const muscleVol={};
   wk.forEach(([,day])=>Object.entries(day).forEach(([ex,sets])=>{
@@ -970,11 +982,15 @@ function analyticsCard(){
     if(!muscleVol[m])muscleVol[m]=0;
     sets.forEach(s=>muscleVol[m]+=(+s.w||0)*(+s.r||0));
   }));
+  const u2=S.u();
   const rows=ms.map(m=>{
     const v=muscleVol[m]||0;
-    const target=TARGETS[m]||8000;
-    const pct=Math.min(100,Math.round((v/target)*100));
-    return{n:m,v:pct,raw:v,target};
+    // Scale target based on current strength — stronger muscles need more volume to maintain
+    const baseTarget=TARGETS[m]||8000;
+    const str=(u2?.muscleStrength?.[m])||50;
+    const scaledTarget=Math.round(baseTarget*(0.7+str/100*0.6));
+    const pct=Math.min(100,Math.round((v/scaledTarget)*100));
+    return{n:m,v:pct,raw:v,target:scaledTarget};
   });
   const total=rows.reduce((s,r)=>s+r.raw,0);
   return`<div class="card card-pad" style="margin-bottom:10px">
@@ -983,7 +999,7 @@ function analyticsCard(){
       <span class="trend-up">${wk.length} sessions this week</span>
     </div>
     <div style="font-size:11px;color:var(--text3);margin-bottom:12px;line-height:1.4">
-      % of a good weekly target (weight × reps). 100% = solid weekly volume for that muscle.
+      % of your weekly volume target. Target scales up as you get stronger — stronger muscles need more work to maintain.
     </div>
     ${total===0?`<div style="font-size:13px;color:var(--text3);padding:8px 0">Log some workouts to see your volume here.</div>`:
     rows.map(m=>`<div class="prog-wrap"><div class="prog-labels"><span>${m.n}</span><span style="color:${m.v>=80?'var(--green)':m.v>=40?'var(--blue2)':'var(--text3)'}">${m.v}%</span></div><div class="prog-bar"><div class="prog-fill" style="width:${m.v}%;background:${m.v>=80?'var(--green)':m.v>=40?'var(--blue)':'var(--yellow)'}"></div></div></div>`).join('')}
@@ -993,11 +1009,14 @@ function analyticsCard(){
 // ─── SPLIT ───
 function buildSplit(el){
   const u=S.u();const sName=u.split||'Push Pull Legs';
-  const split=SPLITS[sName]||SPLITS['Push Pull Legs'];
+  const split=getActiveSplit(sName);
   el.innerHTML=`
   <div class="page-header">
     <div><div class="page-title">SPLIT</div><div class="header-sub">${sName}</div></div>
-    <button style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:var(--blue2);border-radius:var(--radius3);padding:9px 16px;font-size:13px;font-weight:500" onclick="openSplitPicker()">Change ▾</button>
+    <div style="display:flex;gap:8px">
+      <button style="background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);color:var(--blue2);border-radius:var(--radius3);padding:9px 16px;font-size:13px;font-weight:500" onclick="openSplitPicker()">Change ▾</button>
+      ${sName==='Custom'?'<button style="background:var(--blue);color:#fff;border-radius:var(--radius3);padding:9px 16px;font-size:13px;font-weight:600;border:none" onclick="openCustomSplitEditor()">Edit Days</button>':''}
+    </div>
   </div>
   <div class="section">
     <div class="card card-pad" style="display:flex;align-items:center;gap:12px;margin-bottom:16px">
@@ -1034,6 +1053,104 @@ window.openDayPreview=(idx,day)=>{
   </div>`);
 };
 
+// ─── CUSTOM SPLIT EDITOR ───
+window.openCustomSplitEditor=function(){
+  // Init if not set
+  if(!S.customSplitDef)S.customSplitDef={days:['Day 1','Day 2','Day 3']};
+  window._cse={days:[...S.customSplitDef.days]};
+  drawCSE();
+};
+
+function drawCSE(){
+  var days=window._cse.days;
+  var listHTML=days.map(function(d,i){
+    var isRest=d==='Rest';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="font-family:var(--fontd);font-size:22px;color:var(--blue);width:28px;flex-shrink:0">'+(i+1)+'</div>'
+      +(isRest
+        ? '<div style="flex:1;font-size:14px;color:var(--text3);font-style:italic">Rest Day</div>'
+        : '<input class="ex-ainp" value="'+d+'" data-di="'+i+'" oninput="cseRename(this)" style="flex:1;padding:10px 12px;font-size:14px" maxlength="20" placeholder="Day name...">'
+      )
+      +'<button onclick="cseToggleRest('+i+')" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:11px;color:var(--text2);flex-shrink:0">'
+        +(isRest?'Training':'Rest')+'</button>'
+      +'<button onclick="cseMoveUp('+i+')" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:14px;flex-shrink:0;'+(i===0?'opacity:.3;pointer-events:none':'')+'">↑</button>'
+      +'<button onclick="cseMoveDown('+i+')" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 9px;font-size:14px;flex-shrink:0;'+(i===days.length-1?'opacity:.3;pointer-events:none':'')+'">↓</button>'
+      +'<button onclick="cseRemove('+i+')" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#ef4444;border-radius:8px;padding:6px 9px;font-size:14px;flex-shrink:0;'+(days.length<=1?'opacity:.3;pointer-events:none':'')+'">×</button>'
+      +'</div>';
+  }).join('');
+
+  var html='<div class="m-handle"></div>'
+    +'<div class="m-title">Custom Split</div>'
+    +'<div style="padding:0 20px">'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.6">'
+      +'Edit your cycle length, day names, and rest days. Tap a name to rename it.'
+    +'</div>'
+    +'<div id="cse-list">'+listHTML+'</div>'
+    +'<div style="display:flex;gap:8px;margin-top:14px">'
+      +'<button onclick="cseAddDay()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius3);padding:12px;font-size:13px;font-weight:600;color:var(--text2)">+ Training Day</button>'
+      +'<button onclick="cseAddRest()" style="flex:1;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius3);padding:12px;font-size:13px;font-weight:600;color:var(--text2)">+ Rest Day</button>'
+    +'</div>'
+    +'<button class="log-btn" style="margin-top:12px" onclick="cseSave()">Save Split</button>'
+    +'<div style="height:12px"></div>'
+    +'</div>';
+
+  showSheet(html);
+}
+
+window.cseRename=function(inp){
+  var i=parseInt(inp.dataset.di);
+  window._cse.days[i]=inp.value||'Day '+(i+1);
+};
+window.cseToggleRest=function(i){
+  var days=window._cse.days;
+  if(days[i]==='Rest'){
+    // Find a unique day name
+    var n=1;while(days.includes('Day '+n))n++;
+    days[i]='Day '+n;
+  } else {
+    days[i]='Rest';
+  }
+  drawCSE();
+};
+window.cseMoveUp=function(i){
+  if(i===0)return;
+  var days=window._cse.days;
+  var tmp=days[i];days[i]=days[i-1];days[i-1]=tmp;
+  drawCSE();
+};
+window.cseMoveDown=function(i){
+  var days=window._cse.days;
+  if(i>=days.length-1)return;
+  var tmp=days[i];days[i]=days[i+1];days[i+1]=tmp;
+  drawCSE();
+};
+window.cseRemove=function(i){
+  if(window._cse.days.length<=1)return;
+  window._cse.days.splice(i,1);
+  drawCSE();
+};
+window.cseAddDay=function(){
+  var days=window._cse.days;
+  var n=1;while(days.includes('Day '+n))n++;
+  days.push('Day '+n);
+  drawCSE();
+};
+window.cseAddRest=function(){
+  window._cse.days.push('Rest');
+  drawCSE();
+};
+window.cseSave=function(){
+  // Read any in-flight name edits from inputs before saving
+  document.querySelectorAll('#cse-list input[data-di]').forEach(function(inp){
+    var i=parseInt(inp.dataset.di);
+    if(window._cse.days[i]!=='Rest')window._cse.days[i]=inp.value.trim()||('Day '+(i+1));
+  });
+  S.customSplitDef={days:[...window._cse.days]};
+  DB.set('fg_customSplit',S.customSplitDef);
+  closeSheet();
+  renderTab();
+};
+
 window.openSplitPicker=()=>{
   const u=S.u();
   showSheet(`<div class="m-handle"></div>
@@ -1046,9 +1163,16 @@ window.openSplitPicker=()=>{
 };
 window.pickSplit=el=>{
   const newSplit=el.dataset.sn;
-  // Never delete customEx entries — keep all days across all splits so switching
-  // back always restores saved exercises. getDayEx ignores days not in current split.
-  S.patch({split:newSplit});closeSheet();renderTab();
+  S.patch({split:newSplit});
+  closeSheet();
+  if(newSplit==='Custom'){
+    // Init customSplitDef if not set yet
+    if(!S.customSplitDef)S.customSplitDef={days:['Day 1','Day 2','Day 3']};
+    renderTab();
+    setTimeout(openCustomSplitEditor,200);
+  } else {
+    renderTab();
+  }
 };
 
 // ─── EDIT DAY EXERCISES ───
@@ -1161,7 +1285,7 @@ function buildExercises(el){
   buildWorkout(el);
 }
 function buildDaySelector(el){
-  const u=S.u();const split=SPLITS[u.split||'Push Pull Legs']||SPLITS['Push Pull Legs'];
+  const u=S.u();const split=getActiveSplit(u.split||'Push Pull Legs');
   const days=split.days.filter(d=>d!=='Rest');
   el.innerHTML=`
   <div class="page-header">
@@ -1394,11 +1518,22 @@ window.finishWorkout=()=>{
 };
 
 function getOverloadTip(hist){
-  if(hist.length<4)return null;
-  const rMax=Math.max(...hist.slice(0,3).flatMap(h=>h.sets.map(s=>+s.w||0)));
-  const oMax=Math.max(...hist.slice(3,6).flatMap(h=>h.sets.map(s=>+s.w||0)));
-  if(rMax<=oMax)return'Plateau detected. Try adding 5lbs or 1–2 extra reps next session.';
-  return'Great progress! Consider adding 5lbs next session.';
+  if(!hist.length)return null;
+  // Always show a suggestion based on last session even if only 1 session logged
+  const last=hist[0];
+  const lastMax=Math.max(...last.sets.map(s=>+s.w||0));
+  const lastReps=last.sets.length?last.sets[0].r:8;
+  if(!lastMax)return null;
+  const suggested=lastMax+5;
+  // If 4+ sessions, detect plateau vs progress
+  if(hist.length>=4){
+    const rMax=Math.max(...hist.slice(0,3).flatMap(h=>h.sets.map(s=>+s.w||0)));
+    const oMax=Math.max(...hist.slice(3,6).flatMap(h=>h.sets.map(s=>+s.w||0)));
+    if(rMax<=oMax){
+      return'📉 Plateau — try <strong>'+suggested+'lbs</strong> for '+(+lastReps+1)+' reps, or drop weight and increase reps.';
+    }
+  }
+  return'💡 Last session: '+lastMax+'lbs. Try <strong>'+suggested+'lbs</strong> next set.';
 }
 
 // ─── SETTINGS ───
