@@ -537,6 +537,7 @@ function renderAuth(root){
     <div class="auth-tabs">
       <button class="auth-tab${noUsers?'':' active'}" id="tab-login" onclick="authSwitch('login')">Login</button>
       <button class="auth-tab${noUsers?' active':''}" id="tab-signup" onclick="authSwitch('signup')">Sign Up</button>
+      <button class="auth-tab" id="tab-import" onclick="authSwitch('import')">Import</button>
     </div>
     <div id="form-login" style="display:${noUsers?'none':'block'}">
       <div class="afield"><label>Username</label><input id="l-u" type="text" placeholder="your_username" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
@@ -544,6 +545,16 @@ function renderAuth(root){
       <button class="btn-blue" onclick="doLogin()">Log In</button>
       <div class="auth-err" id="err1"></div>
       <button onclick="openForgotPassword()" style="width:100%;background:none;border:none;color:var(--text3);font-size:13px;padding:10px 0;margin-top:2px">Forgot password?</button>
+    </div>
+    <div id="form-import" style="display:none">
+      <div style="background:var(--bg3);border:2px dashed var(--border2);border-radius:var(--radius);padding:24px 16px;text-align:center;margin-bottom:16px;position:relative">
+        <div style="font-size:32px;margin-bottom:8px">📂</div>
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px">Select your Optimal profile file</div>
+        <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Exported from another device</div>
+        <input type="file" id="auth-import-file" accept=".json" onchange="doAuthImport(this)" style="position:absolute;inset:0;opacity:0;cursor:pointer">
+        <button onclick="document.getElementById('auth-import-file').click()" class="btn-blue" style="width:auto;padding:12px 28px;margin-top:0">Choose File</button>
+      </div>
+      <div class="auth-err" id="err3"></div>
     </div>
     <div id="form-signup" style="display:${noUsers?'block':'none'}">
       <div class="afield">
@@ -564,9 +575,11 @@ function renderAuth(root){
   root.appendChild(d);
 }
 window.authSwitch=t=>{
-  ['login','signup'].forEach(x=>{
-    document.getElementById(`tab-${x}`).classList.toggle('active',x===t);
-    document.getElementById(`form-${x}`).style.display=x===t?'block':'none';
+  ['login','signup','import'].forEach(x=>{
+    const tab=document.getElementById('tab-'+x);
+    const form=document.getElementById('form-'+x);
+    if(tab)tab.classList.toggle('active',x===t);
+    if(form)form.style.display=x===t?'block':'none';
   });
 };
 window.doLogin=()=>{
@@ -588,6 +601,28 @@ window.doSignup=()=>{
   S.users[u]={name,username:u,pw:btoa(p),split:'Push Pull Legs',level:'Beginner',goal:'Hypertrophy',weightUnit:'lbs',onboarded:false,
     muscleStrength:{Chest:50,Back:50,Biceps:50,Triceps:50,Shoulders:50,Quads:50,Hamstrings:50,Glutes:50,Calves:50,Abs:50,Traps:50}};
   S.current=u;S.save();render();
+};
+window.doAuthImport=function(input){
+  const file=input.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!data.version||!data.user||!data.user.username){
+        showErr('err3','Invalid file — not an Optimal profile.');return;
+      }
+      const u=data.user.username;
+      S.users[u]=data.user;
+      if(data.logs)S.logs[u]=data.logs;
+      if(data.customEx)S.customEx[u]=data.customEx;
+      if(data.customSplitDef)S.customSplitDef=data.customSplitDef;
+      if(data.userExInfo)S.userExInfo=data.userExInfo;
+      S.current=u;S.save();render();
+    }catch(err){
+      showErr('err3','Could not read file. Make sure it is a valid Optimal export.');
+    }
+  };
+  reader.readAsText(file);
 };
 
 // ─── ONBOARDING ───
@@ -1634,10 +1669,10 @@ function getOverloadTip(hist){
     const rMax=Math.max(...hist.slice(0,3).flatMap(h=>h.sets.map(s=>+s.w||0)));
     const oMax=Math.max(...hist.slice(3,6).flatMap(h=>h.sets.map(s=>+s.w||0)));
     if(rMax<=oMax){
-      return'📉 Plateau — try <strong>'+suggested+'lbs</strong> for '+(+lastReps+1)+' reps, or drop weight and increase reps.';
+      return'Plateau — try <strong>'+suggested+'lbs</strong> for '+(+lastReps+1)+' reps, or drop weight and increase reps.';
     }
   }
-  return'💡 Last session: '+lastMax+'lbs. Try <strong>'+suggested+'lbs</strong> next set.';
+  return'Last session: '+lastMax+'lbs. Try <strong>'+suggested+'lbs</strong> next set.';
 }
 
 // ─── SETTINGS ───
