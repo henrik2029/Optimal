@@ -1931,12 +1931,18 @@ window.exportProfile=function(){
   };
   const json=JSON.stringify(data,null,2);
   const blob=new Blob([json],{type:'application/json'});
+  // iOS Safari fix: always create a fresh anchor, revoke after a delay
+  if(window._exportURL)URL.revokeObjectURL(window._exportURL);
   const url=URL.createObjectURL(blob);
+  window._exportURL=url;
   const a=document.createElement('a');
   a.href=url;
   a.download='optimal-profile-'+u+'-'+new Date().toISOString().slice(0,10)+'.json';
-  document.body.appendChild(a);a.click();
-  document.body.removeChild(a);URL.revokeObjectURL(url);
+  a.style.display='none';
+  document.body.appendChild(a);
+  a.click();
+  // Delay removal so iOS has time to start the download before we clean up
+  setTimeout(function(){document.body.removeChild(a);URL.revokeObjectURL(url);window._exportURL=null;},2000);
   showSheet(`<div class="m-handle"></div>
   <div style="padding:20px;text-align:center">
     <div style="font-size:48px;margin:16px 0">📦</div>
