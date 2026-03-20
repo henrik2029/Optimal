@@ -220,7 +220,9 @@ const S={
   userExInfo:DB.get('fg_userExInfo',{}), // {exName:{muscle,typicalWeight}} for custom exercises
   tab:'profile', day:null,
   wip:{}, // {day:{ex:[{w,r}]}} - in-progress set values
-  save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current);DB.set('fg_customSplit',this.customSplitDef);DB.set('fg_userExInfo',this.userExInfo);},
+  ranksEnabled:DB.get('fg_ranks',false), // beta rank system toggle
+  exRanks:DB.get('fg_exRanks',{}), // {ex:{score,rank}} per exercise
+  save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current);DB.set('fg_customSplit',this.customSplitDef);DB.set('fg_userExInfo',this.userExInfo);DB.set('fg_ranks',this.ranksEnabled);DB.set('fg_exRanks',this.exRanks);},
   u(){return this.current?this.users[this.current]:null},
   patch(d){if(!this.current)return;Object.assign(this.users[this.current],d);this.save()},
   // ── Log sets for exercise (name is the universal key) ──
@@ -981,10 +983,130 @@ window.newExConfirm=function(){
   if(ex.onConfirm)ex.onConfirm(ex.name);
 };
 
+// ─── RANK SYSTEM ───
+
+
+// ─── RANK SYSTEM (Beta) ───
+// Ranks in order, lowest to highest
+const RANKS=[
+  {id:'bronze1',   label:'Bronze I',    tier:'Bronze',   n:1, threshold:0},
+  {id:'bronze2',   label:'Bronze II',   tier:'Bronze',   n:2, threshold:50},
+  {id:'bronze3',   label:'Bronze III',  tier:'Bronze',   n:3, threshold:120},
+  {id:'silver1',   label:'Silver I',    tier:'Silver',   n:1, threshold:220},
+  {id:'silver2',   label:'Silver II',   tier:'Silver',   n:2, threshold:360},
+  {id:'silver3',   label:'Silver III',  tier:'Silver',   n:3, threshold:550},
+  {id:'gold1',     label:'Gold I',      tier:'Gold',     n:1, threshold:800},
+  {id:'gold2',     label:'Gold II',     tier:'Gold',     n:2, threshold:1100},
+  {id:'gold3',     label:'Gold III',    tier:'Gold',     n:3, threshold:1500},
+  {id:'plat1',     label:'Platinum I',  tier:'Platinum', n:1, threshold:2000},
+  {id:'plat2',     label:'Platinum II', tier:'Platinum', n:2, threshold:2600},
+  {id:'plat3',     label:'Platinum III',tier:'Platinum', n:3, threshold:3300},
+  {id:'diamond1',  label:'Diamond I',   tier:'Diamond',  n:1, threshold:4200},
+  {id:'diamond2',  label:'Diamond II',  tier:'Diamond',  n:2, threshold:5200},
+  {id:'diamond3',  label:'Diamond III', tier:'Diamond',  n:3, threshold:6400},
+  {id:'elite',     label:'Elite',       tier:'Elite',    n:0, threshold:8000},
+  {id:'emerald',   label:'Emerald',     tier:'Emerald',  n:0, threshold:10500},
+  {id:'optimal',   label:'Optimal',     tier:'Optimal',  n:0, threshold:14000},
+];
+
+// Rank colors & SVG icons
+const RANK_STYLES={
+  Bronze:  {color:'#cd7f32', bg:'rgba(205,127,50,.12)', border:'rgba(205,127,50,.3)'},
+  Silver:  {color:'#a0a8b8', bg:'rgba(160,168,184,.12)', border:'rgba(160,168,184,.3)'},
+  Gold:    {color:'#f5c518', bg:'rgba(245,197,24,.12)', border:'rgba(245,197,24,.3)'},
+  Platinum:{color:'#72d5f5', bg:'rgba(114,213,245,.12)', border:'rgba(114,213,245,.3)'},
+  Diamond: {color:'#b9f2ff', bg:'rgba(185,242,255,.12)', border:'rgba(185,242,255,.3)'},
+  Elite:   {color:'#ef4444', bg:'rgba(239,68,68,.12)', border:'rgba(239,68,68,.3)'},
+  Emerald: {color:'#22c55e', bg:'rgba(34,197,94,.12)', border:'rgba(34,197,94,.3)'},
+  Optimal: {color:'#a855f7', bg:'rgba(168,85,247,.12)', border:'rgba(168,85,247,.3)'},
+};
+
+function rankIcon(tier, size){
+  size=size||18;
+  const s=RANK_STYLES[tier]||RANK_STYLES.Bronze;
+  const c=s.color;
+  // Simple SVG shield shape with tier initial
+  const init=tier[0].toUpperCase();
+  // Special shapes for top tiers
+  if(tier==='Optimal') return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24"><polygon points="12,2 15,9 22,9 17,14 19,21 12,17 5,21 7,14 2,9 9,9" fill="'+c+'" stroke="none"/></svg>';
+  if(tier==='Emerald') return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24"><polygon points="12,2 20,7 20,17 12,22 4,17 4,7" fill="'+c+'" stroke="none"/></svg>';
+  if(tier==='Elite')   return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24"><path d="M12 2 L20 6 L20 18 L12 22 L4 18 L4 6 Z" fill="'+c+'"/><circle cx="12" cy="12" r="4" fill="rgba(0,0,0,.3)"/></svg>';
+  if(tier==='Diamond') return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24"><polygon points="12,2 22,10 18,22 6,22 2,10" fill="'+c+'" stroke="none"/></svg>';
+  // Shield for Bronze-Platinum
+  return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 24 24"><path d="M12 2 L20 5 L20 12 C20 17 12 22 12 22 C12 22 4 17 4 12 L4 5 Z" fill="'+c+'"/><text x="12" y="15" text-anchor="middle" font-size="8" font-weight="bold" fill="rgba(0,0,0,.5)">'+init+'</text></svg>';
+}
+
+// Compute rank score for an exercise from its full history
+// Score = sum of (max_weight * reps) across best set of each session, weighted for recency
+function computeRankScore(ex){
+  const hist=S.exHist(ex);
+  if(!hist.length)return 0;
+  let score=0;
+  hist.forEach(function(session,i){
+    // Best set in session = highest weight*reps
+    const best=session.sets.reduce(function(b,s){return Math.max(b,(+s.w||0)*(+s.r||0));},0);
+    // More recent sessions count slightly more (recency factor 0.8-1.0)
+    const recency=0.8+0.2*(1-i/Math.max(hist.length,1));
+    score+=best*recency;
+  });
+  return Math.round(score);
+}
+
+function getRankForScore(score){
+  let rank=RANKS[0];
+  for(var i=0;i<RANKS.length;i++){if(score>=RANKS[i].threshold)rank=RANKS[i];}
+  return rank;
+}
+
+function getExRank(ex){
+  const score=computeRankScore(ex);
+  const rank=getRankForScore(score);
+  return{score,rank};
+}
+
+// Update stored rank for an exercise after logging
+function updateExRank(ex){
+  if(!S.ranksEnabled)return;
+  if(!S.exRanks)S.exRanks={};
+  const{score,rank}=getExRank(ex);
+  const prev=S.exRanks[ex];
+  S.exRanks[ex]={score,rankId:rank.id,label:rank.label,tier:rank.tier};
+  DB.set('fg_exRanks',S.exRanks);
+  // Return rank-up info if tier changed
+  if(prev&&prev.tier!==rank.tier)return{rankUp:true,prev:prev.label,now:rank.label,tier:rank.tier};
+  return{rankUp:false};
+}
+
+// On first load, compute ranks for all exercises with existing data
+function initRanksFromHistory(){
+  if(!S.ranksEnabled||!S.current)return;
+  if(!S.exRanks)S.exRanks={};
+  const allLogs=S.logs[S.current]||{};
+  const exSet=new Set();
+  Object.values(allLogs).forEach(function(day){Object.keys(day).forEach(function(ex){exSet.add(ex);});});
+  exSet.forEach(function(ex){
+    if(!S.exRanks[ex]){
+      const{score,rank}=getExRank(ex);
+      S.exRanks[ex]={score,rankId:rank.id,label:rank.label,tier:rank.tier};
+    }
+  });
+  DB.set('fg_exRanks',S.exRanks);
+}
+
+// Rank badge HTML for display
+function rankBadgeHTML(ex, size){
+  if(!S.ranksEnabled)return'';
+  const info=S.exRanks?.[ex];
+  if(!info)return'';
+  const s=RANK_STYLES[info.tier]||RANK_STYLES.Bronze;
+  return'<span style="display:inline-flex;align-items:center;gap:4px;background:'+s.bg+';border:1px solid '+s.border+';border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600;color:'+s.color+'">'+rankIcon(info.tier,12)+'&nbsp;'+info.label+'</span>';
+}
+
 // ─── SHELL ───
 function renderShell(root){
   root.innerHTML=`<div id="screen" class="screen"></div><nav class="bottom-nav" id="main-nav"></nav>`;
   refreshNav();renderTab();checkMonday();
+  initRanksFromHistory();
 }
 function refreshNav(){
   const nav=document.getElementById('main-nav');if(!nav)return;
@@ -1004,7 +1126,7 @@ function checkMonday(){if(new Date().getDay()===1&&!sessionStorage.getItem('fg_w
 function buildProfile(el){
   const u=S.u();const age=calcAge(u.birthday);
   const init=(u.name||'').split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()||'?';
-  const total=Object.keys(S.logs[S.current]||{}).length;
+  const total=(S.u()?.completedWorkouts||Object.keys(S.logs[S.current]||{}).length);
   el.innerHTML=`
   <div class="page-header">
     <div><div class="page-title">PROFILE</div><div class="header-sub">@${u.username}</div></div>
@@ -1549,8 +1671,9 @@ function buildExCard(ex,idx,isDone){
   }
   return`<div class="ex-card">
     <div class="ex-hdr">
-      <div style="flex:1;min-width:0"><div class="ex-nm">${ex}</div><div class="ex-mu">${muscleOf(ex)}</div></div>
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
+      <div style="flex:1;min-width:0"><div class="ex-nm">${ex}</div><div class="ex-mu" style="display:flex;align-items:center;gap:6px">${muscleOf(ex)}${S.ranksEnabled?` <span id="rank-badge-${idx}">${rankBadgeHTML(ex,12)}</span>`:''}</div></div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        ${S.ranksEnabled&&S.exRanks[ex]?rankIcon(S.exRanks[ex].rank,20):''}
         <div id="pr-badge-${idx}">${pr?`<span class="pr-badge">🏆 ${pr.w}lbs</span>`:''}</div>
         <div class="chev">${IC.chevD}</div>
       </div>
@@ -1635,16 +1758,33 @@ window.logEx=(ex,idx)=>{
   S.logSets(ex,sets);
   // Update muscle strength
   const m=muscleOf(ex);if(m!=='Compound'){const u=S.u();const ms={...u.muscleStrength||{}};ms[m]=Math.min(100,(ms[m]||50)+2);S.patch({muscleStrength:ms});}
+  // Update rank
+  const rankUpInfo=updateExRank(ex);
+  // Update rank
+  const rankResult=updateExRank(ex);
   const newBest=sets.reduce((b,s)=>Math.max(b,s.w*s.r),0);
   // True PR: logged something AND it beats the previous best (or is first ever)
   const isPR=newBest>0&&(!oldPR||newBest>oldPR.v);
+  const rankUp=rankUpInfo&&rankUpInfo.rankUp;
   // Store so the Done button can refresh the card
   window._lastLoggedEx=ex;window._lastLoggedIdx=idx;
+  const rankUpHtml=rankResult&&rankResult.rankUp
+    ?'<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:12px;padding:12px">'
+      +rankIcon(rankResult.rankId,28)
+      +'<div><div style="font-size:11px;color:#a78bfa;text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank Up!</div>'
+      +'<div style="font-size:15px;font-weight:700;color:var(--text)">'+rankResult.label+'</div></div></div>'
+    :(rankResult&&!rankResult.rankUp&&S.exRanks[ex]
+      ?'<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:14px;opacity:.7">'
+        +rankIcon(S.exRanks[ex].rank,20)
+        +'<span style="font-size:12px;color:var(--text3)">'+RANKS.find(function(r){return r.id===S.exRanks[ex].rank;})?RANKS.find(function(r){return r.id===S.exRanks[ex].rank;}).label:''+'</span></div>'
+      :'');
   showSheet(`<div class="m-handle"></div>
   <div style="text-align:center;padding:0 20px">
     ${isPR?`<div style="font-size:52px;margin:16px 0">🏆</div><div class="pr-badge" style="font-size:16px;padding:8px 20px;margin-bottom:12px;display:inline-flex">NEW RECORD!</div>`:`<div style="font-size:48px;margin:16px 0">✅</div>`}
+    ${rankUp?`<div style="margin-bottom:10px;font-size:14px;font-weight:600;color:var(--blue2)">⬆ Ranked up to ${rankUpInfo.now}!</div>`:''}
     <div class="m-title" style="padding:0;text-align:center">${isPR?'New PR!':'Sets Logged!'}</div>
-    <div style="font-size:13px;color:var(--text3);margin-bottom:20px">${ex}</div>
+    <div style="font-size:13px;color:var(--text3);margin-bottom:12px">${ex}</div>
+    ${rankUpHtml}
   </div>
   <div style="padding:0 20px">
     <div style="background:var(--bg3);border-radius:11px;padding:14px;border:1px solid var(--border);margin-bottom:16px">
@@ -1655,54 +1795,37 @@ window.logEx=(ex,idx)=>{
   </div>`);
 };
 
-// After logging: move card to bottom as "Done", refresh PR badge
+// After logging: re-render workout in place so done card appears immediately
 window.refreshAfterLog=function(){
-  const ex=window._lastLoggedEx;
-  const idx=window._lastLoggedIdx;
-  if(ex===undefined||idx===undefined)return;
-  // Find the card and replace it with a done card at the bottom of the list
-  const list=document.getElementById('workout-list');
-  if(!list)return;
-  // Find the card by looking for the card containing pr-badge-idx
-  const badgeEl=document.getElementById('pr-badge-'+idx);
-  const card=badgeEl?badgeEl.closest('.ex-card'):null;
-  if(card){
-    // Replace card with done version
-    const doneSets=S.wip[S.day]?.[ex]||[];
-    const summary=doneSets.map(function(s){return s.w+'lbs×'+s.r;}).join(' | ')||'Logged';
-    const doneCard=document.createElement('div');
-    doneCard.className='ex-card done';
-    doneCard.innerHTML='<div class="ex-hdr" style="cursor:default">'
-      +'<div style="flex:1;min-width:0">'
-        +'<div class="ex-nm">'+ex+'</div>'
-        +'<div style="font-size:12px;color:var(--text3);margin-top:3px">'+summary+'</div>'
-      +'</div>'
-      +'<span class="done-badge">✓ Done</span>'
-      +'</div>';
-    card.parentNode.removeChild(card);
-    // Insert before the Complete Workout button
-    const finishBtn=list.querySelector('.log-btn');
-    if(finishBtn){list.insertBefore(doneCard,finishBtn);}
-    else{list.appendChild(doneCard);}
-  }
+  // Use rAF to ensure sheet is fully removed before rebuilding workout
+  requestAnimationFrame(function(){
+    const sc=document.getElementById('screen');
+    if(!sc||!S.day)return;
+    const scrollTop=sc.scrollTop;
+    buildWorkout(sc);
+    sc.scrollTop=scrollTop;
+  });
 };
 
-window.finishWorkout=()=>{
+window.finishWorkout=function(){
+  // Increment dedicated session counter
+  const u=S.u();
+  if(u){S.patch({completedWorkouts:(u.completedWorkouts||0)+1});}
   // Clear wip for this day
   if(S.day&&S.wip[S.day])delete S.wip[S.day];
-  const total=Object.keys(S.logs[S.current]||{}).length;
-  showSheet(`<div class="m-handle"></div>
-  <div style="padding:0 20px;text-align:center">
-    <div style="font-size:56px;margin:16px 0">🔥</div>
-    <div class="m-title" style="padding:0;text-align:center;margin-bottom:8px">Workout Complete!</div>
-    <div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.6">Consistency is the foundation of progress.</div>
-    <div style="background:var(--bg3);border-radius:11px;padding:14px;border:1px solid var(--border);margin-bottom:20px;text-align:left">
-      <div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text3)">Day</span><strong>${S.day}</strong></div>
-      <div style="display:flex;justify-content:space-between;padding:7px 0;font-size:14px"><span style="color:var(--text3)">All-time sessions</span><strong>${total}</strong></div>
-    </div>
-    <button onclick="closeSheet();S.day=null;renderTab()" class="log-btn" style="background:var(--green);margin-top:0">Done</button>
-    <div style="height:12px"></div>
-  </div>`);
+  const total=S.u()?.completedWorkouts||1;
+  showSheet('<div class="m-handle"></div>'
+    +'<div style="padding:0 20px;text-align:center">'
+    +'<div style="font-size:56px;margin:16px 0">🔥</div>'
+    +'<div class="m-title" style="padding:0;text-align:center;margin-bottom:8px">Workout Complete!</div>'
+    +'<div style="font-size:14px;color:var(--text2);margin-bottom:24px;line-height:1.6">Consistency is the foundation of progress.</div>'
+    +'<div style="background:var(--bg3);border-radius:11px;padding:14px;border:1px solid var(--border);margin-bottom:20px;text-align:left">'
+      +'<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text3)">Day</span><strong>'+S.day+'</strong></div>'
+      +'<div style="display:flex;justify-content:space-between;padding:7px 0;font-size:14px"><span style="color:var(--text3)">Total sessions</span><strong>'+total+'</strong></div>'
+    +'</div>'
+    +'<button onclick="closeSheet();S.day=null;renderTab()" class="log-btn" style="background:var(--green);margin-top:0;border:none">Done</button>'
+    +'<div style="height:12px"></div>'
+    +'</div>');
 };
 
 function getOverloadTip(hist){
@@ -1784,6 +1907,21 @@ function buildSettings(el){
         <div class="s-txt"><div class="s-lbl">Redo Setup</div><div class="s-sub">Re-run onboarding wizard</div></div>
         <div style="color:var(--text3)">${IC.chevR}</div>
       </div>
+      <div class="s-row" onclick="toggleRanks()">
+        <div class="s-icon" style="background:rgba(139,92,246,.1)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="s-txt">
+          <div class="s-lbl">Exercise Ranks <span style="background:rgba(139,92,246,.15);color:#a78bfa;font-size:10px;padding:2px 7px;border-radius:20px;margin-left:6px;font-weight:700">BETA</span></div>
+          <div class="s-sub">Rank up as you lift heavier and more reps</div>
+        </div>
+        <div class="toggle ${S.ranksEnabled?'on':''}"><div class="tog-thumb"></div></div>
+      </div>
+      ${S.ranksEnabled?`<div class="s-row" onclick="openRankExplorer()">
+        <div class="s-icon" style="background:rgba(168,85,247,.1)"><svg viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2" width="16" height="16"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div>
+        <div class="s-txt"><div class="s-lbl">My Rankings</div><div class="s-sub">View all exercise ranks</div></div>
+        <div style="color:var(--text3)">${IC.chevR}</div>
+      </div>`:''}
     </div>
   </div>
   <div class="section">
@@ -2105,6 +2243,61 @@ window.deletePREntry=function(ex){
   });
   S.save();
   drawManagePRs();
+};
+
+// ─── RANK FUNCTIONS ───
+window.toggleRanks=function(){
+  S.ranksEnabled=!S.ranksEnabled;
+  DB.set('fg_ranks',S.ranksEnabled);
+  if(S.ranksEnabled)initRanksFromHistory();
+  renderTab();
+};
+
+window.openRankExplorer=function(){
+  if(!S.ranksEnabled){return;}
+  const allLogs=S.logs[S.current]||{};
+  const exSet=new Set();
+  Object.values(allLogs).forEach(function(day){Object.keys(day).forEach(function(ex){exSet.add(ex);});});
+  const exercises=[...exSet].sort();
+  if(!exercises.length){
+    showSheet('<div class="m-handle"></div><div class="m-title">My Rankings</div><div style="padding:0 20px;color:var(--text3);font-size:14px">No exercises logged yet.</div><div style="height:20px"></div>');
+    return;
+  }
+  // Group by tier
+  const byTier={};
+  exercises.forEach(function(ex){
+    const info=S.exRanks?.[ex];
+    if(!info){updateExRank(ex);}
+    const i2=S.exRanks?.[ex];
+    if(!i2)return;
+    if(!byTier[i2.tier])byTier[i2.tier]=[];
+    byTier[i2.tier].push({ex,info:i2});
+  });
+  const tierOrder=['Optimal','Emerald','Elite','Diamond','Platinum','Gold','Silver','Bronze'];
+  var rows='';
+  tierOrder.forEach(function(tier){
+    if(!byTier[tier])return;
+    const s=RANK_STYLES[tier]||RANK_STYLES.Bronze;
+    rows+='<div style="margin-bottom:16px">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        +rankIcon(tier,20)
+        +'<div style="font-size:13px;font-weight:700;color:'+s.color+'">'+tier+'</div>'
+      +'</div>';
+    byTier[tier].forEach(function(item){
+      rows+='<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)">'
+        +'<div>'
+          +'<div style="font-size:14px;font-weight:500">'+item.ex+'</div>'
+          +'<div style="font-size:11px;color:var(--text3);margin-top:1px">'+muscleOf(item.ex)+'</div>'
+        +'</div>'
+        +'<div style="text-align:right">'
+          +'<div style="font-size:12px;font-weight:700;color:'+s.color+'">'+item.info.label+'</div>'
+          +'<div style="font-size:11px;color:var(--text3)">'+item.info.score.toLocaleString()+' pts</div>'
+        +'</div>'
+      +'</div>';
+    });
+    rows+='</div>';
+  });
+  showSheet('<div class="m-handle"></div><div class="m-title">My Rankings</div><div style="padding:0 20px">'+rows+'<div style="height:16px"></div></div>');
 };
 
 // ─── WEEKLY SUMMARY ───
