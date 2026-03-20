@@ -1567,14 +1567,30 @@ function buildExCard(ex,idx,isDone){
 
 function setRow(eIdx,sIdx,last){
   const ls=last?.sets?.[sIdx];
-  return`<div class="set-row">
+  return`<div class="set-row" id="set-row-${eIdx}-${sIdx}">
     <div class="set-lbl">Set ${sIdx+1}</div>
     <input class="set-inp" type="number" inputmode="decimal" placeholder="${ls?ls.w:'0'}" id="w-${eIdx}-${sIdx}" min="0" step="2.5">
     <div class="set-unit">lbs</div>
     <input class="set-inp" type="number" inputmode="numeric" placeholder="${ls?ls.r:'8'}" id="r-${eIdx}-${sIdx}" min="1" step="1">
     <div class="set-unit">reps</div>
+    <button onclick="removeSet(${eIdx},${sIdx})" style="background:none;border:none;color:var(--text3);font-size:18px;padding:0 4px;line-height:1;flex-shrink:0" title="Remove set">×</button>
   </div>`;
 }
+
+window.removeSet=function(eIdx,sIdx){
+  const row=document.getElementById('set-row-'+eIdx+'-'+sIdx);
+  if(!row)return;
+  // Only remove if more than 1 set remains
+  const container=document.getElementById('sets-'+eIdx);
+  if(!container)return;
+  if(container.querySelectorAll('.set-row').length<=1){return;}
+  row.remove();
+  // Renumber remaining set labels
+  container.querySelectorAll('.set-row').forEach(function(r,i){
+    const lbl=r.querySelector('.set-lbl');
+    if(lbl)lbl.textContent='Set '+(i+1);
+  });
+};
 
 window.addSet=idx=>{
   const c=document.getElementById('sets-'+idx);const n=c.querySelectorAll('.set-row').length;
