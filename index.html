@@ -99,6 +99,9 @@ select{background:var(--bg3);color:var(--text)}
 .tip-box{display:flex;align-items:flex-start;gap:10px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.18);border-radius:10px;padding:12px;margin-top:10px}
 .tip-txt{font-size:12px;color:var(--text2);line-height:1.6}
 .chev{color:var(--text3);display:flex;align-items:center;transition:transform .2s;flex-shrink:0}
+.ex-card.done{border-color:var(--green);opacity:.85}
+.ex-card.done .ex-nm{text-decoration:line-through;color:var(--text3)}
+.done-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.3);color:var(--green);border-radius:20px;padding:3px 9px;font-size:12px;font-weight:600}
 .chev.open{transform:rotate(180deg)}
 
 /* ── ANALYTICS ── */
@@ -216,6 +219,7 @@ const S={
   customSplitDef:DB.get('fg_customSplit',null), // custom split day structure
   userExInfo:DB.get('fg_userExInfo',{}), // {exName:{muscle,typicalWeight}} for custom exercises
   tab:'profile', day:null,
+  wip:{}, // {day:{ex:[{w,r}]}} - in-progress set values
   save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current);DB.set('fg_customSplit',this.customSplitDef);DB.set('fg_userExInfo',this.userExInfo);},
   u(){return this.current?this.users[this.current]:null},
   patch(d){if(!this.current)return;Object.assign(this.users[this.current],d);this.save()},
@@ -988,7 +992,7 @@ function refreshNav(){
     .map(([t,l,ic])=>`<button class="nav-item" data-active="${S.tab===t}" onclick="goTab('${t}')"><div class="nav-icon">${ic}</div><span>${l}</span></button>`)
     .join('');
 }
-window.goTab=t=>{S.tab=t;S.day=null;refreshNav();renderTab()};
+window.goTab=t=>{saveWipInputs();S.tab=t;S.day=null;refreshNav();renderTab()};
 function renderTab(){
   const sc=document.getElementById('screen');if(!sc)return;
   sc.className='screen fade-in';sc.innerHTML='';
@@ -1418,6 +1422,43 @@ window.edeSave=function(){
   // (done automatically since renderTab re-reads getDayEx which uses S.customEx)
 };
 
+// ─── REORDER EXERCISES ───
+window.openReorderEx=function(){
+  window._reorder=[...S.getDayEx(S.day)];
+  drawReorder();
+};
+function drawReorder(){
+  var exs=window._reorder;
+  var listHTML=exs.map(function(ex,i){
+    return '<div style="display:flex;align-items:center;gap:8px;padding:11px 0;border-bottom:1px solid var(--border)">'
+      +'<div style="flex:1;font-size:14px;font-weight:500">'+ex+'</div>'
+      +'<div style="font-size:11px;color:var(--text3);margin-right:4px">'+muscleOf(ex)+'</div>'
+      +'<button onclick="reorderMove('+i+',-1)" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px;'+(i===0?'opacity:.3;pointer-events:none':'')+'">↑</button>'
+      +'<button onclick="reorderMove('+i+',1)" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:14px;'+(i===exs.length-1?'opacity:.3;pointer-events:none':'')+'">↓</button>'
+      +'</div>';
+  }).join('');
+  var html='<div class="m-handle"></div>'
+    +'<div class="m-title">Reorder Exercises</div>'
+    +'<div style="padding:0 20px">'
+    +listHTML
+    +'<button class="log-btn" style="margin-top:14px" onclick="reorderSave()">Save Order</button>'
+    +'<div style="height:12px"></div>'
+    +'</div>';
+  showSheet(html);
+}
+window.reorderMove=function(i,dir){
+  var exs=window._reorder;
+  var j=i+dir;
+  if(j<0||j>=exs.length)return;
+  var tmp=exs[i];exs[i]=exs[j];exs[j]=tmp;
+  drawReorder();
+};
+window.reorderSave=function(){
+  S.setDayEx(S.day,[...window._reorder]);
+  closeSheet();
+  renderTab();
+};
+
 // ─── EXERCISES ───
 function buildExercises(el){
   if(!S.day){buildDaySelector(el);return}
@@ -1445,18 +1486,29 @@ function buildDaySelector(el){
 
 function buildWorkout(el){
   const exList=S.getDayEx(S.day);
+  if(!S.wip[S.day])S.wip[S.day]={};
+
+  // Split into pending and done for this session
+  const pending=exList.filter(ex=>!S.wip[S.day]['__done__'+ex]);
+  const done=exList.filter(ex=>!!S.wip[S.day]['__done__'+ex]);
+  const ordered=[...pending,...done];
+
   el.innerHTML=`
   <div class="page-header">
     <div><div class="page-title">${S.day.toUpperCase()}</div><div class="header-sub">${exList.length} exercises</div></div>
-    <button class="hdr-btn" onclick="S.day=null;renderTab()">← Back</button>
+    <div style="display:flex;gap:6px">
+      <button class="hdr-btn" onclick="openReorderEx()" title="Reorder exercises">⇅ Reorder</button>
+      <button class="hdr-btn" onclick="saveWipInputs();S.day=null;renderTab()">← Back</button>
+    </div>
   </div>
-  <div class="section">
-    <div style="background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.18);border-radius:10px;padding:11px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px"><div style="font-size:16px;flex-shrink:0">✏️</div><div style="font-size:12px;color:var(--text2);line-height:1.5">Edit exercises for this day from the <strong style="color:var(--blue2)">Split tab → Edit</strong> button.</div></div>
-    ${exList.length?exList.map((ex,i)=>buildExCard(ex,i)).join(''):'<div style="color:var(--text3);font-size:14px;padding:24px 0;text-align:center">No exercises for this day.<br>Tap Edit to add some.</div>'}
+  <div class="section" id="workout-list">
+    ${ordered.length?ordered.map((ex,i)=>buildExCard(ex,i,!!S.wip[S.day]['__done__'+ex])).join(''):'<div style="color:var(--text3);font-size:14px;padding:24px 0;text-align:center">No exercises for this day.</div>'}
     <button class="log-btn" style="background:var(--green);margin-top:6px" onclick="finishWorkout()">✓ Complete Workout</button>
   </div>`;
+
   el.querySelectorAll('.ex-hdr').forEach(h=>{
     h.addEventListener('click',function(){
+      if(this.closest('.ex-card').classList.contains('done'))return;
       const body=this.closest('.ex-card').querySelector('.ex-body');
       const chev=this.querySelector('.chev');
       const isOpen=body.classList.contains('open');
@@ -1465,125 +1517,46 @@ function buildWorkout(el){
       if(!isOpen){body.classList.add('open');chev.classList.add('open');}
     });
   });
-  // Check if any exercises need starting strength setup
-  setTimeout(function(){checkStartingStrength(exList);},400);
+
+  // Restore wip values into inputs after render
+  ordered.forEach((ex,i)=>{
+    const saved=S.wip[S.day]?.[ex];
+    if(!saved)return;
+    saved.forEach((s,si)=>{
+      const wi=document.getElementById('w-'+i+'-'+si);
+      const ri=document.getElementById('r-'+i+'-'+si);
+      if(wi&&s.w)wi.value=s.w;
+      if(ri&&s.r)ri.value=s.r;
+    });
+  });
 }
 
-// ─── STARTING STRENGTH WIZARD ───
-// Called after workout renders if any exercises have no history
-function checkStartingStrength(exList){
-  if(!S.current)return;
-  const u=S.u();
-  const init=u.strengthInit||{};
-  // Find exercises that have no log history AND haven't been init'd
-  const todo=exList.filter(ex=>!init[ex]&&S.exHist(ex).length===0);
-  if(!todo.length)return;
-  showStrengthWizard(todo,0);
-}
-
-// Store wizard state globally to avoid inline onclick quoting nightmares
-var _sw={todo:[],idx:0};
-
-function showStrengthWizard(todo,idx){
-  if(idx>=todo.length){closeSheet();return;}
-  _sw.todo=todo; _sw.idx=idx;
-  var ex=todo[idx];
-  var m=muscleOf(ex);
-  var wu=(S.u()||{}).weightUnit||'lbs';
-  var done=idx;
-  var total=todo.length;
-  var remaining=total-idx-1;
-  showSheet(
-    '<div class="m-handle"></div>'
-    +'<div style="padding:0 20px">'
-    +'<div style="font-size:11px;color:var(--blue2);text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px">Starting Strength &nbsp;'+done+'/'+total+' done</div>'
-    +'<div style="font-family:var(--fontd);font-size:26px;letter-spacing:1px;margin-bottom:4px">'+ex.toUpperCase()+'</div>'
-    +'<div style="font-size:13px;color:var(--text3);margin-bottom:22px">'+m+' &mdash; What weight &amp; reps can you currently do?</div>'
-    +'<div style="display:flex;gap:10px;margin-bottom:14px">'
-    +'<div style="flex:1"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:6px">Weight ('+wu+')</div>'
-    +'<input class="einp" id="sw-w" type="number" inputmode="decimal" placeholder="e.g. 135" min="0" style="text-align:center"></div>'
-    +'<div style="flex:1"><div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;font-weight:700;margin-bottom:6px">Reps</div>'
-    +'<input class="einp" id="sw-r" type="number" inputmode="numeric" placeholder="e.g. 8" min="1" style="text-align:center"></div>'
-    +'</div>'
-    +'<div style="background:var(--bg3);border-radius:10px;padding:12px;font-size:12px;color:var(--text3);margin-bottom:20px;line-height:1.6">'
-    +'This helps calibrate your muscle map. Enter your typical working weight &mdash; the weight you use for a solid working set.'
-    +'</div>'
-    +'<button class="log-btn" style="margin-top:0" onclick="swSave()">Save &amp; Continue &rarr;</button>'
-    +'<button style="width:100%;padding:14px;font-size:14px;color:var(--text3);background:none;border:none;margin-top:4px" onclick="swSkip()">Skip this exercise</button>'
-    +(remaining>0?'<div style="font-size:12px;color:var(--text3);text-align:center;margin-top:10px;padding-bottom:4px">'+remaining+' more exercise'+(remaining!==1?'s':'')+' after this</div>':'')
-    +'</div>'
-  );
-}
-
-// Strength tiers per muscle (lbs reference: below avg / avg / above avg / strong)
-// Based on general population intermediate standards
-const STRENGTH_TIERS={
-  Chest:      [65,115,165,215],   // bench-type
-  Back:       [95,155,215,275],   // row/pull-type
-  Biceps:     [30,55,80,105],
-  Triceps:    [40,65,95,130],
-  'Shoulders': [45,80,115,155],
-  Quads:      [95,165,235,315],
-  Hamstrings: [75,135,195,255],
-  Glutes:     [75,135,200,270],
-  Calves:     [55,100,155,210],
-  Abs:        [0,0,0,0],          // bodyweight, skip
-  Traps:      [55,95,140,190],
-  Compound:   [95,155,225,295],
-};
-
-function weightToStrength(ex,w,r){
-  // Estimate 1RM using Epley formula, then compare to tiers
-  const oneRM=w*(1+r/30);
-  const m=muscleOf(ex);
-  const tiers=STRENGTH_TIERS[m]||STRENGTH_TIERS.Compound;
-  if(tiers[0]===0)return 50; // bodyweight exercises default to average
-  if(oneRM<tiers[0])return 20;
-  if(oneRM<tiers[1])return 35;
-  if(oneRM<tiers[2])return 55;
-  if(oneRM<tiers[3])return 72;
-  return 88;
-}
-
-window.swSave=function(){
-  var ex=_sw.todo[_sw.idx];
-  var w=parseFloat(document.getElementById('sw-w').value)||0;
-  var r=parseInt(document.getElementById('sw-r').value)||0;
-  if(!w||!r){alert('Please enter weight and reps, or tap Skip.');return;}
-  var u=S.u();
-  var init=Object.assign({},u.strengthInit||{});
-  init[ex]=true;
-  var m=muscleOf(ex);
-  var ms=Object.assign({},u.muscleStrength||{});
-  var newVal=weightToStrength(ex,w,r);
-  var existing=ms[m]||50;
-  ms[m]=init[ex+'_c']?Math.round((existing+newVal)/2):newVal;
-  init[ex+'_c']=true;
-  S.patch({strengthInit:init,muscleStrength:ms});
-  showStrengthWizard(_sw.todo,_sw.idx+1);
-};
-
-window.swSkip=function(){
-  var ex=_sw.todo[_sw.idx];
-  var u=S.u();
-  var init=Object.assign({},u.strengthInit||{});
-  init[ex]=true;
-  S.patch({strengthInit:init});
-  showStrengthWizard(_sw.todo,_sw.idx+1);
-};
-
-function buildExCard(ex,idx){
+function buildExCard(ex,idx,isDone){
   const pr=S.getPR(ex);const hist=S.exHist(ex);const last=hist[0];const tip=getOverloadTip(hist);
+  if(isDone){
+    // Show as completed - collapsed, green border, sets summary
+    const doneSets=S.wip[S.day]?.[ex]||[];
+    const summary=doneSets.length?doneSets.map(s=>s.w+'lbs×'+s.r).join(' | '):'Logged';
+    return`<div class="ex-card done">
+      <div class="ex-hdr" style="cursor:default">
+        <div style="flex:1;min-width:0">
+          <div class="ex-nm">${ex}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:3px">${summary}</div>
+        </div>
+        <span class="done-badge">✓ Done</span>
+      </div>
+    </div>`;
+  }
   return`<div class="ex-card">
     <div class="ex-hdr">
       <div style="flex:1;min-width:0"><div class="ex-nm">${ex}</div><div class="ex-mu">${muscleOf(ex)}</div></div>
       <div style="display:flex;align-items:center;gap:8px;flex-shrink:0">
-        ${pr?`<span class="pr-badge">🏆 ${pr.w}lbs</span>`:''}
+        <div id="pr-badge-${idx}">${pr?`<span class="pr-badge">🏆 ${pr.w}lbs</span>`:''}</div>
         <div class="chev">${IC.chevD}</div>
       </div>
     </div>
     <div class="ex-body">
-      ${last?`<div class="prev-box">Last: ${last.sets.map(s=>`${s.w}lbs×${s.r}`).join(' | ')}<br><span style="font-size:11px;color:var(--text3)">${last.date}</span></div>`:'<div class="prev-box" style="color:var(--text3)">First time — no previous data.</div>'}
+      ${last?`<div class="prev-box" id="prev-box-${idx}">Last: ${last.sets.map(s=>`${s.w}lbs×${s.r}`).join(' | ')}<br><span style="font-size:11px;color:var(--text3)">${last.date}</span></div>`:'<div class="prev-box" id="prev-box-${idx}" style="color:var(--text3)">First time — no previous data.</div>'}
       <div id="sets-${idx}">${[0].map(s=>setRow(idx,s,last)).join('')}</div>
       <button class="add-set-btn" onclick="addSet(${idx})">+ Add Set</button>
       ${tip?`<div class="tip-box"><div style="font-size:18px;flex-shrink:0">💡</div><div class="tip-txt">${tip}</div></div>`:''}
@@ -1604,9 +1577,29 @@ function setRow(eIdx,sIdx,last){
 }
 
 window.addSet=idx=>{
-  const c=document.getElementById(`sets-${idx}`);const n=c.querySelectorAll('.set-row').length;
+  const c=document.getElementById('sets-'+idx);const n=c.querySelectorAll('.set-row').length;
   const d=document.createElement('div');d.innerHTML=setRow(idx,n,null);c.appendChild(d.firstElementChild);
 };
+// Save wip whenever an input changes
+function saveWipInputs(){
+  if(!S.day)return;
+  if(!S.wip[S.day])S.wip[S.day]={};
+  const exList=S.getDayEx(S.day);
+  // Get pending exercises (not done)
+  const pending=exList.filter(ex=>!S.wip[S.day]['__done__'+ex]);
+  pending.forEach((ex,i)=>{
+    const sets=[];let si=0;
+    while(true){
+      const wi=document.getElementById('w-'+i+'-'+si);
+      const ri=document.getElementById('r-'+i+'-'+si);
+      if(!wi)break;
+      const w=parseFloat(wi.value)||0;const r=parseInt(ri.value)||0;
+      if(w>0||r>0)sets.push({w:w||0,r:r||0});
+      si++;
+    }
+    if(sets.length)S.wip[S.day][ex]=sets;
+  });
+}
 
 window.logEx=(ex,idx)=>{
   const sets=[];let i=0;
@@ -1617,6 +1610,10 @@ window.logEx=(ex,idx)=>{
     if(w>0&&r>0)sets.push({w,r});i++;
   }
   if(!sets.length){alert('Enter weight & reps first!');return}
+  // Save sets to wip so they persist if user navigates away
+  if(!S.wip[S.day])S.wip[S.day]={};
+  S.wip[S.day][ex]=sets;
+  S.wip[S.day]['__done__'+ex]=true;
   // Get old PR BEFORE saving so we can compare properly
   const oldPR=S.getPR(ex);
   S.logSets(ex,sets);
@@ -1625,6 +1622,8 @@ window.logEx=(ex,idx)=>{
   const newBest=sets.reduce((b,s)=>Math.max(b,s.w*s.r),0);
   // True PR: logged something AND it beats the previous best (or is first ever)
   const isPR=newBest>0&&(!oldPR||newBest>oldPR.v);
+  // Store so the Done button can refresh the card
+  window._lastLoggedEx=ex;window._lastLoggedIdx=idx;
   showSheet(`<div class="m-handle"></div>
   <div style="text-align:center;padding:0 20px">
     ${isPR?`<div style="font-size:52px;margin:16px 0">🏆</div><div class="pr-badge" style="font-size:16px;padding:8px 20px;margin-bottom:12px;display:inline-flex">NEW RECORD!</div>`:`<div style="font-size:48px;margin:16px 0">✅</div>`}
@@ -1635,12 +1634,46 @@ window.logEx=(ex,idx)=>{
     <div style="background:var(--bg3);border-radius:11px;padding:14px;border:1px solid var(--border);margin-bottom:16px">
       ${sets.map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text3)">Set ${i+1}</span><strong>${s.w}lbs × ${s.r} reps</strong></div>`).join('')}
     </div>
-    <button onclick="closeSheet()" class="log-btn" style="margin-top:0">Done</button>
+    <button onclick="closeSheet();refreshAfterLog();" class="log-btn" style="margin-top:0">Done</button>
     <div style="height:12px"></div>
   </div>`);
 };
 
+// After logging: move card to bottom as "Done", refresh PR badge
+window.refreshAfterLog=function(){
+  const ex=window._lastLoggedEx;
+  const idx=window._lastLoggedIdx;
+  if(ex===undefined||idx===undefined)return;
+  // Find the card and replace it with a done card at the bottom of the list
+  const list=document.getElementById('workout-list');
+  if(!list)return;
+  // Find the card by looking for the card containing pr-badge-idx
+  const badgeEl=document.getElementById('pr-badge-'+idx);
+  const card=badgeEl?badgeEl.closest('.ex-card'):null;
+  if(card){
+    // Replace card with done version
+    const doneSets=S.wip[S.day]?.[ex]||[];
+    const summary=doneSets.map(function(s){return s.w+'lbs×'+s.r;}).join(' | ')||'Logged';
+    const doneCard=document.createElement('div');
+    doneCard.className='ex-card done';
+    doneCard.innerHTML='<div class="ex-hdr" style="cursor:default">'
+      +'<div style="flex:1;min-width:0">'
+        +'<div class="ex-nm">'+ex+'</div>'
+        +'<div style="font-size:12px;color:var(--text3);margin-top:3px">'+summary+'</div>'
+      +'</div>'
+      +'<span class="done-badge">✓ Done</span>'
+      +'</div>';
+    card.parentNode.removeChild(card);
+    // Insert before the Complete Workout button
+    const finishBtn=list.querySelector('.log-btn');
+    if(finishBtn){list.insertBefore(doneCard,finishBtn);}
+    else{list.appendChild(doneCard);}
+  }
+};
+
 window.finishWorkout=()=>{
+  // Clear wip for this day
+  if(S.day&&S.wip[S.day])delete S.wip[S.day];
   const total=Object.keys(S.logs[S.current]||{}).length;
   showSheet(`<div class="m-handle"></div>
   <div style="padding:0 20px;text-align:center">
@@ -1716,6 +1749,13 @@ function buildSettings(el){
       <div class="s-row" onclick="showWeekly()">
         <div class="s-icon">${IC.chart}</div>
         <div class="s-txt"><div class="s-lbl">Weekly Summary</div><div class="s-sub">View your 7-day report</div></div>
+        <div style="color:var(--text3)">${IC.chevR}</div>
+      </div>
+      <div class="s-row" onclick="openManagePRs()">
+        <div class="s-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#eab308" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </div>
+        <div class="s-txt"><div class="s-lbl">Manage PRs</div><div class="s-sub">View and edit personal records</div></div>
         <div style="color:var(--text3)">${IC.chevR}</div>
       </div>
     </div>
@@ -1936,6 +1976,113 @@ window.doImportProfile=function(input){
     }
   };
   reader.readAsText(file);
+};
+
+// ─── MANAGE PRs ───
+window.openManagePRs=function(){
+  drawManagePRs();
+};
+
+function drawManagePRs(){
+  // Collect all exercises that have any logged data
+  const allLogs=S.logs[S.current]||{};
+  const exSet=new Set();
+  Object.values(allLogs).forEach(day=>Object.keys(day).forEach(ex=>exSet.add(ex)));
+  const exercises=[...exSet].sort();
+
+  if(!exercises.length){
+    showSheet(`<div class="m-handle"></div>
+    <div class="m-title">Personal Records</div>
+    <div style="padding:0 20px;font-size:14px;color:var(--text3)">No exercises logged yet. Start a workout to see your PRs here.</div>
+    <div style="height:20px"></div>`);
+    return;
+  }
+
+  const rows=exercises.map(function(ex,ei){
+    const pr=S.getPR(ex);
+    if(!pr)return'';
+    // Use data-ei index to avoid quote-in-onclick issues
+    return '<div class="mdet-row" style="align-items:flex-start;flex-direction:column;gap:6px">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;width:100%">'
+        +'<div>'
+          +'<div style="font-size:14px;font-weight:500">'+ex+'</div>'
+          +'<div style="font-size:11px;color:var(--text3);margin-top:2px">'+muscleOf(ex)+'</div>'
+        +'</div>'
+        +'<div style="display:flex;align-items:center;gap:8px">'
+          +'<span class="pr-badge">🏆 '+pr.w+'lbs &times; '+pr.r+' reps</span>'
+          +'<button data-prex="'+ei+'" onclick="editPRByIdx(this)" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--text2)">Edit</button>'
+          +'<button data-prex="'+ei+'" onclick="deletePRByIdx(this)" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);color:#ef4444;border-radius:8px;padding:5px 10px;font-size:12px">Clear</button>'
+        +'</div>'
+      +'</div>'
+    +'</div>';
+  }).join('');
+  // Store exercise list for index-based access
+  window._prExList=exercises;
+
+  showSheet('<div class="m-handle"></div>'
+    +'<div class="m-title">Personal Records</div>'
+    +'<div style="padding:0 20px">'
+    +rows
+    +'<div style="height:16px"></div>'
+    +'</div>');
+}
+
+window.editPRByIdx=function(btn){
+  var ex=window._prExList[parseInt(btn.dataset.prex)];
+  if(ex)editPR(ex);
+};
+window.deletePRByIdx=function(btn){
+  var ex=window._prExList[parseInt(btn.dataset.prex)];
+  if(ex)deletePREntry(ex);
+};
+window.editPR=function(ex){
+  var pr=S.getPR(ex);
+  var wVal=pr?pr.w:'';
+  var rVal=pr?pr.r:'';
+  // Store ex so savePREdit can access it without inline string interpolation
+  window._editPREx=ex;
+  var html='<div class="m-handle"></div>'
+    +'<div class="m-title">Edit PR</div>'
+    +'<div style="padding:0 20px">'
+    +'<div style="background:var(--bg3);border-radius:var(--radius3);padding:12px 15px;margin-bottom:18px;border:1px solid var(--border)">'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:2px">Exercise</div>'
+      +'<div style="font-size:15px;font-weight:600">'+ex+'</div>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--text3);margin-bottom:14px;line-height:1.6">'
+      +'This adds a corrected PR entry to today. Your existing history is preserved.'
+    +'</div>'
+    +'<div class="ef"><div class="elbl">Weight (lbs)</div>'
+      +'<input class="einp" id="pr-edit-w" type="number" inputmode="decimal" value="'+wVal+'" placeholder="e.g. 185">'
+    +'</div>'
+    +'<div class="ef"><div class="elbl">Reps</div>'
+      +'<input class="einp" id="pr-edit-r" type="number" inputmode="numeric" value="'+rVal+'" placeholder="e.g. 5">'
+    +'</div>'
+    +'<button class="log-btn" style="margin-top:8px" onclick="savePREdit()">Save PR</button>'
+    +'<button style="width:100%;padding:14px;color:var(--text3);font-size:14px;background:none;border:none;margin-top:4px" onclick="drawManagePRs()">← Back</button>'
+    +'<div style="height:8px"></div>'
+    +'</div>';
+  showSheet(html);
+};
+
+
+window.savePREdit=function(){
+  var ex=window._editPREx;if(!ex)return;
+  var w=parseFloat(document.getElementById('pr-edit-w')?.value)||0;
+  var r=parseInt(document.getElementById('pr-edit-r')?.value)||0;
+  if(!w||!r){alert('Enter both weight and reps');return;}
+  S.logSets(ex,[{w,r}]);
+  drawManagePRs();
+};
+
+window.deletePREntry=function(ex){
+  // Clear ALL log entries for this exercise across all dates
+  const allLogs=S.logs[S.current]||{};
+  let cleared=0;
+  Object.keys(allLogs).forEach(function(date){
+    if(allLogs[date][ex]){delete allLogs[date][ex];cleared++;}
+  });
+  S.save();
+  drawManagePRs();
 };
 
 // ─── WEEKLY SUMMARY ───
