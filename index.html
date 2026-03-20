@@ -1022,6 +1022,7 @@ const RANK_STYLES={
 };
 
 function rankIcon(tier, size){
+  if(!tier)return'';
   size=size||18;
   const s=RANK_STYLES[tier]||RANK_STYLES.Bronze;
   const c=s.color;
@@ -1044,6 +1045,7 @@ function computeRankScore(ex){
   let score=0;
   hist.forEach(function(session,i){
     // Best set in session = highest weight*reps
+    if(!session||!session.sets)return;
     const best=session.sets.reduce(function(b,s){return Math.max(b,(+s.w||0)*(+s.r||0));},0);
     // More recent sessions count slightly more (recency factor 0.8-1.0)
     const recency=0.8+0.2*(1-i/Math.max(hist.length,1));
@@ -1064,11 +1066,34 @@ function getExRank(ex){
   return{score,rank};
 }
 
+// Overall rank = average score across all exercises with data
+function getOverallRank(){
+  if(!S.ranksEnabled||!S.current)return null;
+  const allLogs=S.logs[S.current]||{};
+  const exSet=new Set();
+  Object.values(allLogs).forEach(function(day){Object.keys(day).forEach(function(ex){exSet.add(ex);});});
+  if(!exSet.size)return null;
+  let total=0;let count=0;
+  exSet.forEach(function(ex){
+    const sc=computeRankScore(ex);
+    if(sc>0){total+=sc;count++;}
+  });
+  if(!count)return null;
+  const avgScore=Math.round(total/count);
+  const rank=getRankForScore(avgScore);
+  // Progress to next rank
+  const idx=RANKS.findIndex(function(r){return r.id===rank.id;});
+  const next=RANKS[idx+1]||null;
+  const pct=next?Math.min(100,Math.round(((avgScore-rank.threshold)/(next.threshold-rank.threshold))*100)):100;
+  return{score:avgScore,rank,next,pct,idx};
+}
+
 // Update stored rank for an exercise after logging
 function updateExRank(ex){
   if(!S.ranksEnabled)return;
   if(!S.exRanks)S.exRanks={};
   const{score,rank}=getExRank(ex);
+  if(!rank)return;
   const prev=S.exRanks[ex];
   S.exRanks[ex]={score,rankId:rank.id,label:rank.label,tier:rank.tier};
   DB.set('fg_exRanks',S.exRanks);
@@ -1085,10 +1110,12 @@ function initRanksFromHistory(){
   const exSet=new Set();
   Object.values(allLogs).forEach(function(day){Object.keys(day).forEach(function(ex){exSet.add(ex);});});
   exSet.forEach(function(ex){
-    if(!S.exRanks[ex]){
-      const{score,rank}=getExRank(ex);
-      S.exRanks[ex]={score,rankId:rank.id,label:rank.label,tier:rank.tier};
-    }
+    try{
+      if(!S.exRanks[ex]){
+        const{score,rank}=getExRank(ex);
+        if(rank)S.exRanks[ex]={score,rankId:rank.id,label:rank.label,tier:rank.tier};
+      }
+    }catch(e){}
   });
   DB.set('fg_exRanks',S.exRanks);
 }
@@ -1101,6 +1128,33 @@ function rankBadgeHTML(ex, size){
   const s=RANK_STYLES[info.tier]||RANK_STYLES.Bronze;
   return'<span style="display:inline-flex;align-items:center;gap:4px;background:'+s.bg+';border:1px solid '+s.border+';border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600;color:'+s.color+'">'+rankIcon(info.tier,12)+'&nbsp;'+info.label+'</span>';
 }
+
+// Overall rank info popup
+window.openRankInfo=function(){
+  if(!S.ranksEnabled)return;
+  const ov=getOverallRank();
+  const rows=RANKS.map(function(r,i){
+    const s=RANK_STYLES[r.tier]||RANK_STYLES.Bronze;
+    const isCur=ov&&ov.rank.id===r.id;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);'+(isCur?'background:rgba(59,130,246,.04);margin:0 -4px;padding:9px 4px;border-radius:6px':'')+'">'
+      +rankIcon(r.tier,20)
+      +'<span style="font-size:13px;font-weight:'+(isCur?'700':'400')+';color:'+(isCur?s.color:'var(--text2)')+'">'+r.label+'</span>'
+      +(isCur?'<span style="margin-left:auto;font-size:11px;color:var(--blue2);font-weight:600">← You</span>':'')
+      +'<span style="margin-left:auto;font-size:11px;color:var(--text3)">'+r.threshold+' pts</span>'
+      +'</div>';
+  }).join('');
+  showSheet('<div class="m-handle"></div>'
+    +'<div class="m-title">Rank System</div>'
+    +'<div style="padding:0 20px">'
+    +(ov?'<div style="background:var(--bg3);border-radius:var(--radius3);padding:13px;margin-bottom:16px;border:1px solid var(--border)">'
+      +'<div style="font-size:12px;color:var(--text3);margin-bottom:4px">Your overall score</div>'
+      +'<div style="font-size:22px;font-weight:700;color:var(--blue2)">'+ov.score+' pts</div>'
+      +'<div style="font-size:12px;color:var(--text3);margin-top:2px">Average across all tracked exercises</div>'
+      +'</div>':'')
+    +rows
+    +'<div style="height:16px"></div>'
+    +'</div>');
+};
 
 // ─── SHELL ───
 function renderShell(root){
@@ -1138,7 +1192,31 @@ function buildProfile(el){
       <div style="flex:1;min-width:0">
         <div style="font-size:19px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.name||'User'}</div>
         ${age!==null?`<div style="font-size:13px;color:var(--text3);margin-top:2px">${age} years old</div>`:''}
-        <div style="margin-top:8px"><span class="badge">⚡ ${u.level||'Beginner'}</span></div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="badge">⚡ ${u.level||'Beginner'}</span>
+          ${(()=>{
+            if(!S.ranksEnabled)return'';
+            const ov=getOverallRank();
+            if(!ov)return'';
+            const s=RANK_STYLES[ov.rank.tier]||RANK_STYLES.Bronze;
+            return '<span style="display:inline-flex;align-items:center;gap:5px;background:'+s.bg+';border:1px solid '+s.border+';border-radius:20px;padding:5px 11px;font-size:12px;font-weight:600;color:'+s.color+';cursor:pointer" onclick="openRankInfo()">'
+              +rankIcon(ov.rank.tier,14)+'&nbsp;'+ov.rank.label+'</span>';
+          })()}
+        </div>
+        ${(()=>{
+          if(!S.ranksEnabled)return'';
+          const ov=getOverallRank();
+          if(!ov)return'';
+          const s=RANK_STYLES[ov.rank.tier]||RANK_STYLES.Bronze;
+          const nextLabel=ov.next?ov.next.label:'Max Rank';
+          return '<div style="margin-top:10px">'
+            +'<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text3);margin-bottom:4px">'
+              +'<span>Overall Rank</span>'
+              +'<span>'+ov.pct+'% → '+nextLabel+'</span>'
+            +'</div>'
+            +'<div class="prog-bar"><div class="prog-fill" style="width:'+ov.pct+'%;background:'+s.color+'"></div></div>'
+            +'</div>';
+        })()}
       </div>
     </div>
     <div class="stat-row" style="margin-bottom:12px">
@@ -1673,7 +1751,7 @@ function buildExCard(ex,idx,isDone){
     <div class="ex-hdr">
       <div style="flex:1;min-width:0"><div class="ex-nm">${ex}</div><div class="ex-mu" style="display:flex;align-items:center;gap:6px">${muscleOf(ex)}${S.ranksEnabled?` <span id="rank-badge-${idx}">${rankBadgeHTML(ex,12)}</span>`:''}</div></div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        ${S.ranksEnabled&&S.exRanks[ex]?rankIcon(S.exRanks[ex].rank,20):''}
+        ${S.ranksEnabled&&S.exRanks[ex]?rankIcon(S.exRanks[ex].tier,20):''}
         <div id="pr-badge-${idx}">${pr?`<span class="pr-badge">🏆 ${pr.w}lbs</span>`:''}</div>
         <div class="chev">${IC.chevD}</div>
       </div>
