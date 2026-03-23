@@ -219,10 +219,10 @@ const S={
   customSplitDef:DB.get('fg_customSplit',null), // custom split day structure
   userExInfo:DB.get('fg_userExInfo',{}), // {exName:{muscle,typicalWeight}} for custom exercises
   tab:'profile', day:null,
-  wip:{}, // {day:{ex:[{w,r}]}} - in-progress set values
+  wip:DB.get('fg_wip',{}), // {day:{ex:[{w,r}]}} — persisted across app close
   ranksEnabled:DB.get('fg_ranks',false), // beta rank system toggle
   exRanks:DB.get('fg_exRanks',{}), // {ex:{score,rank}} per exercise
-  save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current);DB.set('fg_customSplit',this.customSplitDef);DB.set('fg_userExInfo',this.userExInfo);DB.set('fg_ranks',this.ranksEnabled);DB.set('fg_exRanks',this.exRanks);},
+  save(){DB.set('fg_users',this.users);DB.set('fg_logs',this.logs);DB.set('fg_customEx',this.customEx);DB.set('fg_current',this.current);DB.set('fg_customSplit',this.customSplitDef);DB.set('fg_userExInfo',this.userExInfo);DB.set('fg_ranks',this.ranksEnabled);DB.set('fg_exRanks',this.exRanks);DB.set('fg_wip',this.wip);},
   u(){return this.current?this.users[this.current]:null},
   patch(d){if(!this.current)return;Object.assign(this.users[this.current],d);this.save()},
   // ── Log sets for exercise (name is the universal key) ──
@@ -990,23 +990,23 @@ window.newExConfirm=function(){
 // Ranks in order, lowest to highest
 const RANKS=[
   {id:'bronze1',   label:'Bronze I',    tier:'Bronze',   n:1, threshold:0},
-  {id:'bronze2',   label:'Bronze II',   tier:'Bronze',   n:2, threshold:50},
-  {id:'bronze3',   label:'Bronze III',  tier:'Bronze',   n:3, threshold:120},
-  {id:'silver1',   label:'Silver I',    tier:'Silver',   n:1, threshold:220},
-  {id:'silver2',   label:'Silver II',   tier:'Silver',   n:2, threshold:360},
-  {id:'silver3',   label:'Silver III',  tier:'Silver',   n:3, threshold:550},
-  {id:'gold1',     label:'Gold I',      tier:'Gold',     n:1, threshold:800},
-  {id:'gold2',     label:'Gold II',     tier:'Gold',     n:2, threshold:1100},
-  {id:'gold3',     label:'Gold III',    tier:'Gold',     n:3, threshold:1500},
-  {id:'plat1',     label:'Platinum I',  tier:'Platinum', n:1, threshold:2000},
-  {id:'plat2',     label:'Platinum II', tier:'Platinum', n:2, threshold:2600},
-  {id:'plat3',     label:'Platinum III',tier:'Platinum', n:3, threshold:3300},
-  {id:'diamond1',  label:'Diamond I',   tier:'Diamond',  n:1, threshold:4200},
-  {id:'diamond2',  label:'Diamond II',  tier:'Diamond',  n:2, threshold:5200},
-  {id:'diamond3',  label:'Diamond III', tier:'Diamond',  n:3, threshold:6400},
-  {id:'emerald',   label:'Emerald',     tier:'Emerald',  n:0, threshold:8000},
-  {id:'elite',     label:'Elite',       tier:'Elite',    n:0, threshold:10500},
-  {id:'optimal',   label:'Optimal',     tier:'Optimal',  n:0, threshold:14000},
+  {id:'bronze2',   label:'Bronze II',   tier:'Bronze',   n:2, threshold:70},
+  {id:'bronze3',   label:'Bronze III',  tier:'Bronze',   n:3, threshold:140},
+  {id:'silver1',   label:'Silver I',    tier:'Silver',   n:1, threshold:200},
+  {id:'silver2',   label:'Silver II',   tier:'Silver',   n:2, threshold:270},
+  {id:'silver3',   label:'Silver III',  tier:'Silver',   n:3, threshold:340},
+  {id:'gold1',     label:'Gold I',      tier:'Gold',     n:1, threshold:420},
+  {id:'gold2',     label:'Gold II',     tier:'Gold',     n:2, threshold:500},
+  {id:'gold3',     label:'Gold III',    tier:'Gold',     n:3, threshold:570},
+  {id:'plat1',     label:'Platinum I',  tier:'Platinum', n:1, threshold:620},
+  {id:'plat2',     label:'Platinum II', tier:'Platinum', n:2, threshold:660},
+  {id:'plat3',     label:'Platinum III',tier:'Platinum', n:3, threshold:700},
+  {id:'diamond1',  label:'Diamond I',   tier:'Diamond',  n:1, threshold:740},
+  {id:'diamond2',  label:'Diamond II',  tier:'Diamond',  n:2, threshold:780},
+  {id:'diamond3',  label:'Diamond III', tier:'Diamond',  n:3, threshold:820},
+  {id:'emerald',   label:'Emerald',     tier:'Emerald',  n:0, threshold:860},
+  {id:'elite',     label:'Elite',       tier:'Elite',    n:0, threshold:920},
+  {id:'optimal',   label:'Optimal',     tier:'Optimal',  n:0, threshold:980},
 ];
 
 // Rank colors & SVG icons
@@ -1039,19 +1039,108 @@ function rankIcon(tier, size){
 
 // Compute rank score for an exercise from its full history
 // Score = sum of (max_weight * reps) across best set of each session, weighted for recency
+// Strength benchmarks by exercise (lbs, for a ~175lb male intermediate lifter, ~25yo)
+// Each entry: [beginner, intermediate, advanced, elite]
+const EX_BENCHMARKS={
+  // Chest
+  'Bench Press':         [95,155,225,315],
+  'Incline Bench Press': [75,125,185,265],
+  'Incline Smith Machine':[70,120,175,250],
+  'DB Flat Press':       [40,70,100,140],
+  'DB Incline Press':    [35,60,90,130],
+  'Chest Fly':           [25,45,65,95],
+  'Pec Deck':            [60,100,145,205],
+  'Cable Fly':           [30,50,75,110],
+  'Chest Dips':          [0,10,50,100], // bodyweight+
+  // Back
+  'Pull-Ups':            [0,10,40,80],
+  'Lat Pulldown':        [70,120,175,245],
+  'Upper Back Row':      [65,115,165,235],
+  'Mid Back Row':        [65,110,160,225],
+  'Barbell Row':         [95,155,225,315],
+  'Single Arm Row':      [45,75,110,155],
+  'Seated Cable Row':    [60,105,155,220],
+  'Deadlift':            [135,225,315,455],
+  'Lat Pullover':        [40,65,95,135],
+  // Shoulders
+  'Shoulder Press':      [55,95,145,205],
+  'Overhead Press':      [55,95,145,205],
+  'Lateral Raises':      [15,25,40,60],
+  'Cable Lateral Raise': [10,20,35,55],
+  'Face Pulls':          [30,55,80,115],
+  'Arnold Press':        [30,55,85,120],
+  'Rear Delt Fly':       [15,25,40,60],
+  // Biceps
+  'Barbell Curl':        [45,75,110,155],
+  'Preacher Curl':       [35,60,90,130],
+  'Hammer Curl':         [25,45,65,95],
+  'Incline DB Curl':     [20,35,55,80],
+  'Cable Curl':          [30,50,75,110],
+  'EZ Bar Curl':         [45,70,105,150],
+  'Dumbbell Curl':       [25,45,65,95],
+  // Triceps
+  'Tricep Pushdown':     [35,60,90,130],
+  'Cable Overhead Tricep Ext':[25,45,70,105],
+  'Skull Crushers':      [45,75,110,155],
+  'Overhead DB Ext':     [30,55,85,120],
+  'Close Grip Bench':    [75,125,185,265],
+  'Tricep Dips':         [0,10,50,100],
+  // Legs
+  'Back Squat':          [95,185,275,385],
+  'Leg Press':           [180,320,460,640],
+  'Hack Squat':          [90,165,245,345],
+  'Leg Extension':       [60,100,145,205],
+  'Hamstring Curl':      [55,90,130,185],
+  'Romanian Deadlift':   [95,165,245,345],
+  'Hip Thrust':          [95,185,275,385],
+  'Bulgarian Split Squat':[45,85,135,195],
+  'Walking Lunges':      [0,45,95,155],
+  'Calf Raises':         [90,155,225,315],
+  'Machine Abductor':    [50,90,135,190],
+  'Machine Adductor':    [50,90,135,190],
+};
+
+// Convert a 1RM estimate to a 0-1000 rank score relative to bodyweight-adjusted benchmarks
 function computeRankScore(ex){
   const hist=S.exHist(ex);
   if(!hist.length)return 0;
-  let score=0;
-  hist.forEach(function(session,i){
-    // Best set in session = highest weight*reps
+  // Best single set weight across all history (PR weight)
+  let prW=0; let prR=0;
+  hist.forEach(function(session){
     if(!session||!session.sets)return;
-    const best=session.sets.reduce(function(b,s){return Math.max(b,(+s.w||0)*(+s.r||0));},0);
-    // More recent sessions count slightly more (recency factor 0.8-1.0)
-    const recency=0.8+0.2*(1-i/Math.max(hist.length,1));
-    score+=best*recency;
+    session.sets.forEach(function(s){
+      var w=+s.w||0; var r=+s.r||0;
+      if(w>prW||(w===prW&&r>prR)){prW=w;prR=r;}
+    });
   });
-  return Math.round(score);
+  if(!prW)return 0;
+  // Estimate 1RM using Epley formula: w * (1 + r/30)
+  const orm=prR>1?Math.round(prW*(1+prR/30)):prW;
+  // Adjust for bodyweight and age
+  const u=S.u();
+  const bw=parseFloat(u?.weight)||175; // lbs
+  const age=calcAge(u?.birthday)||25;
+  const bwFactor=175/Math.max(bw,80); // lighter people get a slight bonus
+  const ageFactor=age<20?0.9:age>50?0.85:1.0; // age adjustment
+  const adjOrm=orm*bwFactor*ageFactor;
+  // Look up benchmark for this exercise
+  const bench=EX_BENCHMARKS[ex];
+  if(!bench){
+    // Unknown exercise: score based on absolute weight
+    return Math.min(1000,Math.round(adjOrm*2));
+  }
+  const [beg,inter,adv,elite]=bench;
+  // Map to 0-1000 score:
+  // 0→beg = 0-200 (bronze/silver), beg→inter = 200-450 (gold), 
+  // inter→adv = 450-700 (plat/diamond), adv→elite = 700-900 (emerald), 900+=elite/optimal
+  let score=0;
+  if(adjOrm<=0)score=0;
+  else if(adjOrm<beg)score=Math.round((adjOrm/beg)*200);
+  else if(adjOrm<inter)score=200+Math.round(((adjOrm-beg)/(inter-beg))*250);
+  else if(adjOrm<adv)score=450+Math.round(((adjOrm-inter)/(adv-inter))*250);
+  else if(adjOrm<elite)score=700+Math.round(((adjOrm-adv)/(elite-adv))*200);
+  else score=Math.min(1000,900+Math.round(((adjOrm-elite)/elite)*100));
+  return Math.max(0,score);
 }
 
 function getRankForScore(score){
@@ -1843,9 +1932,8 @@ window.logEx=(ex,idx)=>{
   // Update muscle strength
   const m=muscleOf(ex);if(m!=='Compound'){const u=S.u();const ms={...u.muscleStrength||{}};ms[m]=Math.min(100,(ms[m]||50)+2);S.patch({muscleStrength:ms});}
   // Update rank
-  const rankUpInfo=updateExRank(ex);
-  // Update rank
   const rankResult=updateExRank(ex);
+  const rankUpInfo=rankResult;
   const newBest=sets.reduce((b,s)=>Math.max(b,s.w*s.r),0);
   // True PR: logged something AND it beats the previous best (or is first ever)
   const isPR=newBest>0&&(!oldPR||newBest>oldPR.v);
@@ -1854,12 +1942,12 @@ window.logEx=(ex,idx)=>{
   window._lastLoggedEx=ex;window._lastLoggedIdx=idx;
   const rankUpHtml=rankResult&&rankResult.rankUp
     ?'<div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:14px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:12px;padding:12px">'
-      +rankIcon(rankResult.rankId,28)
+      +rankIcon(rankResult.tier,28)
       +'<div><div style="font-size:11px;color:#a78bfa;text-transform:uppercase;letter-spacing:1px;font-weight:700">Rank Up!</div>'
       +'<div style="font-size:15px;font-weight:700;color:var(--text)">'+rankResult.label+'</div></div></div>'
     :(rankResult&&!rankResult.rankUp&&S.exRanks[ex]
       ?'<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:14px;opacity:.7">'
-        +rankIcon(S.exRanks[ex].rank,20)
+        +rankIcon(S.exRanks[ex].tier,20)
         +'<span style="font-size:12px;color:var(--text3)">'+RANKS.find(function(r){return r.id===S.exRanks[ex].rank;})?RANKS.find(function(r){return r.id===S.exRanks[ex].rank;}).label:''+'</span></div>'
       :'');
   showSheet(`<div class="m-handle"></div>
