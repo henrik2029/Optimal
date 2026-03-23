@@ -1174,7 +1174,13 @@ function renderTab(){
   sc.className='screen fade-in';sc.innerHTML='';
   ({profile:buildProfile,split:buildSplit,exercises:buildExercises,settings:buildSettings}[S.tab]||buildProfile)(sc);
 }
-function checkMonday(){if(new Date().getDay()===1&&!sessionStorage.getItem('fg_wk')){sessionStorage.setItem('fg_wk','1');setTimeout(showWeekly,700)}}
+function checkMonday(){
+  if(new Date().getDay()!==1)return;
+  const key='fg_wk_'+new Date().toISOString().slice(0,10);
+  if(DB.get(key,false))return;
+  DB.set(key,true);
+  setTimeout(showWeekly,700);
+}
 
 // ─── PROFILE ───
 function buildProfile(el){
@@ -1770,9 +1776,9 @@ function setRow(eIdx,sIdx,last){
   const ls=last?.sets?.[sIdx];
   return`<div class="set-row" id="set-row-${eIdx}-${sIdx}">
     <div class="set-lbl">Set ${sIdx+1}</div>
-    <input class="set-inp" type="number" inputmode="decimal" placeholder="${ls?ls.w:'0'}" id="w-${eIdx}-${sIdx}" min="0" step="2.5">
+    <input class="set-inp" type="number" inputmode="decimal" placeholder="${ls?ls.w:'0'}" id="w-${eIdx}-${sIdx}" min="0" step="2.5" oninput="saveWipInputs()">
     <div class="set-unit">lbs</div>
-    <input class="set-inp" type="number" inputmode="numeric" placeholder="${ls?ls.r:'8'}" id="r-${eIdx}-${sIdx}" min="1" step="1">
+    <input class="set-inp" type="number" inputmode="numeric" placeholder="${ls?ls.r:'8'}" id="r-${eIdx}-${sIdx}" min="1" step="1" oninput="saveWipInputs()">
     <div class="set-unit">reps</div>
     <button onclick="removeSet(${eIdx},${sIdx})" style="background:none;border:none;color:var(--text3);font-size:18px;padding:0 4px;line-height:1;flex-shrink:0" title="Remove set">×</button>
   </div>`;
@@ -1875,14 +1881,14 @@ window.logEx=(ex,idx)=>{
 
 // After logging: re-render workout in place so done card appears immediately
 window.refreshAfterLog=function(){
-  // Use rAF to ensure sheet is fully removed before rebuilding workout
-  requestAnimationFrame(function(){
+  // Small delay so iOS finishes sheet close animation before we rebuild
+  setTimeout(function(){
     const sc=document.getElementById('screen');
     if(!sc||!S.day)return;
     const scrollTop=sc.scrollTop;
     buildWorkout(sc);
     sc.scrollTop=scrollTop;
-  });
+  },80);
 };
 
 window.finishWorkout=function(){
