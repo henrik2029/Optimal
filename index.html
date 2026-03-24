@@ -1232,7 +1232,7 @@ function updateExRank(ex){
   S.exRanks[ex]={score,rankId:rank.id,label:rank.label,tier:rank.tier};
   DB.set('fg_exRanks',S.exRanks);
   // Return rank-up info if tier changed
-  if(prev&&prev.tier!==rank.tier)return{rankUp:true,prev:prev.label,now:rank.label,tier:rank.tier};
+  if(prev&&prev.rankId!==rank.id)return{rankUp:true,prev:prev.label,now:rank.label,tier:rank.tier};
   return{rankUp:false};
 }
 
@@ -1257,10 +1257,13 @@ function initRanksFromHistory(){
 // Rank badge HTML for display
 function rankBadgeHTML(ex, size){
   if(!S.ranksEnabled)return'';
-  const info=S.exRanks?.[ex];
-  if(!info)return'';
-  const s=RANK_STYLES[info.tier]||RANK_STYLES.Bronze;
-  return'<span style="display:inline-flex;align-items:center;gap:4px;background:'+s.bg+';border:1px solid '+s.border+';border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600;color:'+s.color+'">'+rankIcon(info.tier,12)+'&nbsp;'+info.label+'</span>';
+  // Always compute live so rank reflects latest formula + user stats
+  const sc=computeRankScore(ex);
+  if(!sc)return'';
+  const rank=getRankForScore(sc);
+  if(!rank)return'';
+  const s=RANK_STYLES[rank.tier]||RANK_STYLES.Bronze;
+  return'<span style="display:inline-flex;align-items:center;gap:4px;background:'+s.bg+';border:1px solid '+s.border+';border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600;color:'+s.color+'">'+rankIcon(rank.tier,12)+'&nbsp;'+rank.label+'</span>';
 }
 
 // Overall rank info popup
@@ -1282,7 +1285,7 @@ window.openRankInfo=function(){
     +'<div style="padding:0 20px">'
     +(ov?'<div style="background:var(--bg3);border-radius:var(--radius3);padding:13px;margin-bottom:16px;border:1px solid var(--border)">'
       +'<div style="font-size:12px;color:var(--text3);margin-bottom:4px">Your overall score</div>'
-      +'<div style="font-size:22px;font-weight:700;color:var(--blue2)">'+ov.score+' pts</div>'
+      +'<div style="font-size:22px;font-weight:700;color:var(--blue2)">'+ov.score+' / 980 pts</div>'
       +'<div style="font-size:12px;color:var(--text3);margin-top:2px">Average across all tracked exercises</div>'
       +'</div>':'')
     +rows
@@ -1442,31 +1445,26 @@ window.openMuscleDetail=m=>{
 function analyticsCard(){
   // Volume = total lbs lifted (weight × reps) per muscle this week
   // % shown = how close you are to a good weekly target for that muscle
-  // Targets account for muscle size: big muscles (legs, back, chest) need more volume
   const TARGETS={
-    'Chest':8000,'Back':10000,'Shoulders':7000,'Legs':20000,
-    'Biceps':4000,'Triceps':4000,'Glutes':7000,'Calves':3000,'Abs':2500,'Traps':3000
+    'Chest':8000,'Back':10000,'Shoulders':7000,'Legs':22000,
+    'Biceps':4000,'Triceps':4000,'Calves':3000,'Abs':2500
   };
   const ms=['Chest','Back','Shoulders','Legs','Biceps','Triceps','Calves','Abs'];
   const wk=S.weekLogs();
   const muscleVol={};
-  const LEG_MUSCLES=new Set(['Quads','Hamstrings','Glutes','Calves']);
+  // Merge quad/hamstring/glute → Legs; everything else stays as-is
   wk.forEach(([,day])=>Object.entries(day).forEach(([ex,sets])=>{
     let m=muscleOf(ex);if(m==='Compound')return;
-    // Merge quad/hamstring/glute into Legs for the chart
     if(m==='Quads'||m==='Hamstrings'||m==='Glutes')m='Legs';
+    if(!ms.includes(m))return; // skip muscles not in display list
     if(!muscleVol[m])muscleVol[m]=0;
     sets.forEach(s=>muscleVol[m]+=(+s.w||0)*(+s.r||0));
   }));
-  const u2=S.u();
   const rows=ms.map(m=>{
     const v=muscleVol[m]||0;
-    // Scale target based on current strength — stronger muscles need more volume to maintain
-    const baseTarget=TARGETS[m]||8000;
-    const str=(u2?.muscleStrength?.[m])||50;
-    const scaledTarget=Math.round(baseTarget*(0.7+str/100*0.6));
-    const pct=Math.min(100,Math.round((v/scaledTarget)*100));
-    return{n:m,v:pct,raw:v,target:scaledTarget};
+    const target=TARGETS[m]||8000;
+    const pct=Math.min(100,Math.round((v/target)*100));
+    return{n:m,v:pct,raw:v,target};
   });
   const total=rows.reduce((s,r)=>s+r.raw,0);
   return`<div class="card card-pad" style="margin-bottom:10px">
@@ -1894,7 +1892,7 @@ function buildExCard(ex,idx,isDone){
     <div class="ex-hdr">
       <div style="flex:1;min-width:0"><div class="ex-nm">${ex}</div><div class="ex-mu" style="display:flex;align-items:center;gap:6px">${muscleOf(ex)}${S.ranksEnabled?` <span id="rank-badge-${idx}">${rankBadgeHTML(ex,12)}</span>`:''}</div></div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
-        ${S.ranksEnabled&&S.exRanks[ex]?rankIcon(S.exRanks[ex].tier,20):''}
+        ${(()=>{if(!S.ranksEnabled)return'';const _sc=computeRankScore(ex);if(!_sc)return'';const _rk=getRankForScore(_sc);return _rk?rankIcon(_rk.tier,20):'';})()}
         <div id="pr-badge-${idx}">${pr?`<span class="pr-badge">🏆 ${pr.w}lbs</span>`:''}</div>
         <div class="chev">${IC.chevD}</div>
       </div>
@@ -2504,12 +2502,12 @@ window.openRankExplorer=function(){
   // Group by tier
   const byTier={};
   exercises.forEach(function(ex){
-    const info=S.exRanks?.[ex];
-    if(!info){updateExRank(ex);}
-    const i2=S.exRanks?.[ex];
-    if(!i2)return;
-    if(!byTier[i2.tier])byTier[i2.tier]=[];
-    byTier[i2.tier].push({ex,info:i2});
+    const sc=computeRankScore(ex);
+    if(!sc)return;
+    const rank=getRankForScore(sc);
+    if(!rank)return;
+    if(!byTier[rank.tier])byTier[rank.tier]=[];
+    byTier[rank.tier].push({ex,score:sc,rank});
   });
   const tierOrder=['Optimal','Emerald','Elite','Diamond','Platinum','Gold','Silver','Bronze'];
   var rows='';
@@ -2528,8 +2526,8 @@ window.openRankExplorer=function(){
           +'<div style="font-size:11px;color:var(--text3);margin-top:1px">'+muscleOf(item.ex)+'</div>'
         +'</div>'
         +'<div style="text-align:right">'
-          +'<div style="font-size:12px;font-weight:700;color:'+s.color+'">'+item.info.label+'</div>'
-          +'<div style="font-size:11px;color:var(--text3)">'+item.info.score.toLocaleString()+' pts</div>'
+          +'<div style="font-size:12px;font-weight:700;color:'+s.color+'">'+item.rank.label+'</div>'
+          +'<div style="font-size:11px;color:var(--text3)">'+item.score+' / 980 pts</div>'
         +'</div>'
       +'</div>';
     });
