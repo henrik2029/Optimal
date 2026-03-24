@@ -250,8 +250,14 @@ const S={
     return pr;
   },
   weekLogs(){
-    const all=this.logs[this.current]||{};const now=Date.now();
-    return Object.entries(all).filter(([d])=>(now-new Date(d).getTime())<7*864e5);
+    const all=this.logs[this.current]||{};
+    const now=new Date();
+    // Find Monday of current week
+    const day=now.getDay();
+    const diff=now.getDate()-(day===0?6:day-1);
+    const mon=new Date(now.getFullYear(),now.getMonth(),diff);
+    mon.setHours(0,0,0,0);
+    return Object.entries(all).filter(([d])=>new Date(d)>=mon);
   },
   getDayEx(day){
     const u=this.u();if(!u)return[];
@@ -1039,109 +1045,146 @@ function rankIcon(tier, size){
 
 // Compute rank score for an exercise from its full history
 // Score = sum of (max_weight * reps) across best set of each session, weighted for recency
-// Strength benchmarks by exercise (lbs, for a ~175lb male intermediate lifter, ~25yo)
-// Each entry: [beginner, intermediate, advanced, elite]
+// ── RANK SCORING ──
+// Benchmarks: expected 1RM in lbs for a reference lifter (175lb, 25yo male)
+// [beginner, novice, intermediate, advanced, elite] (roughly ExRx standards)
 const EX_BENCHMARKS={
-  // Chest
-  'Bench Press':         [95,155,225,315],
-  'Incline Bench Press': [75,125,185,265],
-  'Incline Smith Machine':[70,120,175,250],
-  'DB Flat Press':       [40,70,100,140],
-  'DB Incline Press':    [35,60,90,130],
-  'Chest Fly':           [25,45,65,95],
-  'Pec Deck':            [60,100,145,205],
-  'Cable Fly':           [30,50,75,110],
-  'Chest Dips':          [0,10,50,100], // bodyweight+
-  // Back
-  'Pull-Ups':            [0,10,40,80],
-  'Lat Pulldown':        [70,120,175,245],
-  'Upper Back Row':      [65,115,165,235],
-  'Mid Back Row':        [65,110,160,225],
-  'Barbell Row':         [95,155,225,315],
-  'Single Arm Row':      [45,75,110,155],
-  'Seated Cable Row':    [60,105,155,220],
-  'Deadlift':            [135,225,315,455],
-  'Lat Pullover':        [40,65,95,135],
-  // Shoulders
-  'Shoulder Press':      [55,95,145,205],
-  'Overhead Press':      [55,95,145,205],
-  'Lateral Raises':      [15,25,40,60],
-  'Cable Lateral Raise': [10,20,35,55],
-  'Face Pulls':          [30,55,80,115],
-  'Arnold Press':        [30,55,85,120],
-  'Rear Delt Fly':       [15,25,40,60],
-  // Biceps
-  'Barbell Curl':        [45,75,110,155],
-  'Preacher Curl':       [35,60,90,130],
-  'Hammer Curl':         [25,45,65,95],
-  'Incline DB Curl':     [20,35,55,80],
-  'Cable Curl':          [30,50,75,110],
-  'EZ Bar Curl':         [45,70,105,150],
-  'Dumbbell Curl':       [25,45,65,95],
-  // Triceps
-  'Tricep Pushdown':     [35,60,90,130],
-  'Cable Overhead Tricep Ext':[25,45,70,105],
-  'Skull Crushers':      [45,75,110,155],
-  'Overhead DB Ext':     [30,55,85,120],
-  'Close Grip Bench':    [75,125,185,265],
-  'Tricep Dips':         [0,10,50,100],
-  // Legs
-  'Back Squat':          [95,185,275,385],
-  'Leg Press':           [180,320,460,640],
-  'Hack Squat':          [90,165,245,345],
-  'Leg Extension':       [60,100,145,205],
-  'Hamstring Curl':      [55,90,130,185],
-  'Romanian Deadlift':   [95,165,245,345],
-  'Hip Thrust':          [95,185,275,385],
-  'Bulgarian Split Squat':[45,85,135,195],
-  'Walking Lunges':      [0,45,95,155],
-  'Calf Raises':         [90,155,225,315],
-  'Machine Abductor':    [50,90,135,190],
-  'Machine Adductor':    [50,90,135,190],
+  'Bench Press':         [70, 115, 150, 215, 290],
+  'Incline Bench Press': [55,  90, 125, 175, 240],
+  'Incline Smith Machine':[55, 90, 120, 170, 230],
+  'DB Flat Press':       [35,  60,  80, 115, 155],
+  'DB Incline Press':    [30,  50,  70, 100, 140],
+  'Chest Fly':           [20,  35,  50,  70,  95],
+  'Pec Deck':            [50,  85, 115, 160, 215],
+  'Cable Fly':           [25,  45,  60,  85, 115],
+  'Chest Dips':          [0,   15,  45,  85, 135], // added lbs
+  'Pull-Ups':            [0,   10,  35,  70, 110], // added lbs
+  'Lat Pulldown':        [60, 100, 135, 185, 250],
+  'Upper Back Row':      [60, 100, 135, 185, 250],
+  'Mid Back Row':        [55,  90, 125, 175, 235],
+  'Barbell Row':         [75, 125, 165, 235, 315],
+  'Single Arm Row':      [35,  60,  85, 120, 165],
+  'Seated Cable Row':    [50,  85, 115, 165, 220],
+  'Deadlift':            [115, 185, 245, 345, 460],
+  'Lat Pullover':        [35,  55,  75, 110, 150],
+  'Shoulder Press':      [45,  75, 100, 145, 195],
+  'Overhead Press':      [45,  75, 100, 145, 195],
+  'Lateral Raises':      [12,  20,  30,  45,  65],
+  'Cable Lateral Raise': [10,  18,  28,  42,  60],
+  'Face Pulls':          [25,  45,  65,  90, 125],
+  'Arnold Press':        [25,  45,  65,  95, 130],
+  'Rear Delt Fly':       [12,  20,  30,  45,  65],
+  'Barbell Curl':        [35,  60,  80, 115, 155],
+  'Preacher Curl':       [30,  50,  70, 100, 135],
+  'Hammer Curl':         [20,  35,  50,  70,  95],
+  'Incline DB Curl':     [15,  30,  45,  65,  90],
+  'Cable Curl':          [25,  40,  60,  85, 115],
+  'EZ Bar Curl':         [35,  60,  80, 110, 150],
+  'Dumbbell Curl':       [20,  35,  50,  70,  95],
+  'Tricep Pushdown':     [30,  50,  70, 100, 135],
+  'Cable Overhead Tricep Ext':[20,35,55,80,110],
+  'Skull Crushers':      [35,  60,  85, 120, 165],
+  'Overhead DB Ext':     [25,  45,  65,  95, 130],
+  'Close Grip Bench':    [60, 100, 135, 190, 255],
+  'Tricep Dips':         [0,   15,  45,  85, 135],
+  'Back Squat':          [90, 145, 195, 275, 370],
+  'Leg Press':           [160,270, 360, 500, 670],
+  'Hack Squat':          [80, 135, 185, 260, 350],
+  'Leg Extension':       [50,  85, 115, 160, 215],
+  'Hamstring Curl':      [45,  75, 105, 145, 195],
+  'Romanian Deadlift':   [85, 140, 185, 260, 350],
+  'Hip Thrust':          [90, 150, 200, 285, 380],
+  'Bulgarian Split Squat':[40,70,100,145,200],
+  'Walking Lunges':      [0,   40,  80, 130, 185],
+  'Calf Raises':         [80, 135, 185, 260, 350],
+  'Machine Abductor':    [45,  75, 105, 145, 195],
+  'Machine Adductor':    [45,  75, 105, 145, 195],
 };
 
-// Convert a 1RM estimate to a 0-1000 rank score relative to bodyweight-adjusted benchmarks
+// Age correction factors (peak strength ~25-35)
+function ageFactor(age){
+  if(!age||age<16)return 0.80;
+  if(age<20)return 0.90;
+  if(age<25)return 0.97;
+  if(age<=35)return 1.00;
+  if(age<=45)return 0.95;
+  if(age<=55)return 0.88;
+  return 0.80;
+}
+
+// Bodyweight scaling: expected strength scales with bw^0.67 (allometric)
+function bwFactor(bwLbs){
+  const ref=175; // reference bodyweight in lbs
+  if(!bwLbs||bwLbs<80)return 1.0;
+  return Math.pow(ref/bwLbs, 0.67);
+}
+
+// Height factor: taller lifters have longer range of motion, slight disadvantage
+function htFactor(htIn){
+  const ref=69; // 5'9" reference
+  if(!htIn||htIn<50)return 1.0;
+  const diff=htIn-ref;
+  return 1 - diff*0.003; // ~0.3% per inch difference, capped reasonably
+}
+
+// Compute 0-1000 rank score: how strong is user on this exercise relative to their body?
 function computeRankScore(ex){
   const hist=S.exHist(ex);
   if(!hist.length)return 0;
-  // Best single set weight across all history (PR weight)
-  let prW=0; let prR=0;
+
+  // Find best single-rep-max estimate across all history
+  let bestOrm=0;
   hist.forEach(function(session){
     if(!session||!session.sets)return;
     session.sets.forEach(function(s){
-      var w=+s.w||0; var r=+s.r||0;
-      if(w>prW||(w===prW&&r>prR)){prW=w;prR=r;}
+      const w=+s.w||0; const r=+s.r||1;
+      if(!w)return;
+      // Epley formula: estimated 1RM = w*(1 + r/30), capped at r=12 for reliability
+      const orm=r<=1?w:w*(1+Math.min(r,12)/30);
+      if(orm>bestOrm)bestOrm=orm;
     });
   });
-  if(!prW)return 0;
-  // Estimate 1RM using Epley formula: w * (1 + r/30)
-  const orm=prR>1?Math.round(prW*(1+prR/30)):prW;
-  // Adjust for bodyweight and age
+  if(!bestOrm)return 0;
+
+  // Get user stats
   const u=S.u();
-  const bw=parseFloat(u?.weight)||175; // lbs
+  const bw=parseFloat(u?.weight)||175;
   const age=calcAge(u?.birthday)||25;
-  const bwFactor=175/Math.max(bw,80); // lighter people get a slight bonus
-  const ageFactor=age<20?0.9:age>50?0.85:1.0; // age adjustment
-  const adjOrm=orm*bwFactor*ageFactor;
-  // Look up benchmark for this exercise
+  const htRaw=u?.height?parseInt(u.height):69;
+  const ht=u?.heightUnit==='ft'?htRaw:Math.round(htRaw/2.54); // convert cm to inches if needed
+
+  // Adjust expected benchmarks for this user's body
+  const bf=bwFactor(bw);
+  const af=ageFactor(age);
+  const hf=htFactor(ht);
+  const bodyAdj=bf*af*hf;
+
   const bench=EX_BENCHMARKS[ex];
   if(!bench){
-    // Unknown exercise: score based on absolute weight
-    return Math.min(1000,Math.round(adjOrm*2));
+    // Unknown exercise: compare against generic strength curve
+    // Use a rough expected 1RM of 1.0x bodyweight as intermediate benchmark
+    const expInter=bw*bodyAdj;
+    return Math.min(980, Math.max(0, Math.round((bestOrm/expInter)*450)));
   }
-  const [beg,inter,adv,elite]=bench;
-  // Map to 0-1000 score:
-  // 0→beg = 0-200 (bronze/silver), beg→inter = 200-450 (gold), 
-  // inter→adv = 450-700 (plat/diamond), adv→elite = 700-900 (emerald), 900+=elite/optimal
-  let score=0;
-  if(adjOrm<=0)score=0;
-  else if(adjOrm<beg)score=Math.round((adjOrm/beg)*200);
-  else if(adjOrm<inter)score=200+Math.round(((adjOrm-beg)/(inter-beg))*250);
-  else if(adjOrm<adv)score=450+Math.round(((adjOrm-inter)/(adv-inter))*250);
-  else if(adjOrm<elite)score=700+Math.round(((adjOrm-adv)/(elite-adv))*200);
-  else score=Math.min(1000,900+Math.round(((adjOrm-elite)/elite)*100));
+
+  // Scale all benchmarks for this user
+  const [b0,b1,b2,b3,b4]=bench.map(function(x){return x*bodyAdj;});
+
+  // Map to 0-1000:
+  // <b0=beginner: 0-150, b0-b1=novice: 150-300, b1-b2=intermediate: 300-500
+  // b2-b3=advanced: 500-720, b3-b4=elite: 720-900, >b4=optimal: 900-980
+  let score;
+  if(bestOrm<=0)          score=0;
+  else if(bestOrm<b0)     score=Math.round((bestOrm/Math.max(b0,1))*150);
+  else if(bestOrm<b1)     score=150+Math.round(((bestOrm-b0)/Math.max(b1-b0,1))*150);
+  else if(bestOrm<b2)     score=300+Math.round(((bestOrm-b1)/Math.max(b2-b1,1))*200);
+  else if(bestOrm<b3)     score=500+Math.round(((bestOrm-b2)/Math.max(b3-b2,1))*220);
+  else if(bestOrm<b4)     score=720+Math.round(((bestOrm-b3)/Math.max(b4-b3,1))*180);
+  else                    score=Math.min(980,900+Math.round(((bestOrm-b4)/Math.max(b4,1))*80));
+
   return Math.max(0,score);
 }
+
 
 function getRankForScore(score){
   let rank=RANKS[0];
@@ -1162,19 +1205,21 @@ function getOverallRank(){
   const exSet=new Set();
   Object.values(allLogs).forEach(function(day){Object.keys(day).forEach(function(ex){exSet.add(ex);});});
   if(!exSet.size)return null;
-  let total=0;let count=0;
+  // Average raw 0-1000 scores — overall rank = mean strength across all exercises
+  let totalScore=0;let count=0;
   exSet.forEach(function(ex){
     const sc=computeRankScore(ex);
-    if(sc>0){total+=sc;count++;}
+    if(sc>0){totalScore+=sc;count++;}
   });
   if(!count)return null;
-  const avgScore=Math.round(total/count);
+  const avgScore=Math.round(totalScore/count);
   const rank=getRankForScore(avgScore);
-  // Progress to next rank
-  const idx=RANKS.findIndex(function(r){return r.id===rank.id;});
-  const next=RANKS[idx+1]||null;
-  const pct=next?Math.min(100,Math.round(((avgScore-rank.threshold)/(next.threshold-rank.threshold))*100)):100;
-  return{score:avgScore,rank,next,pct,idx};
+  const rankIdx=RANKS.findIndex(function(r){return r.id===rank.id;});
+  const next=RANKS[rankIdx+1]||null;
+  const pct=next
+    ?Math.min(100,Math.round(((avgScore-rank.threshold)/(next.threshold-rank.threshold))*100))
+    :100;
+  return{score:avgScore,rank,next,pct,idx:rankIdx};
 }
 
 // Update stored rank for an exercise after logging
@@ -1399,14 +1444,17 @@ function analyticsCard(){
   // % shown = how close you are to a good weekly target for that muscle
   // Targets account for muscle size: big muscles (legs, back, chest) need more volume
   const TARGETS={
-    'Chest':8000,'Back':10000,'Shoulders':7000,'Quads':12000,'Hamstrings':8000,
+    'Chest':8000,'Back':10000,'Shoulders':7000,'Legs':20000,
     'Biceps':4000,'Triceps':4000,'Glutes':7000,'Calves':3000,'Abs':2500,'Traps':3000
   };
-  const ms=['Chest','Back','Shoulders','Quads','Hamstrings','Biceps','Triceps','Calves','Abs'];
+  const ms=['Chest','Back','Shoulders','Legs','Biceps','Triceps','Calves','Abs'];
   const wk=S.weekLogs();
   const muscleVol={};
+  const LEG_MUSCLES=new Set(['Quads','Hamstrings','Glutes','Calves']);
   wk.forEach(([,day])=>Object.entries(day).forEach(([ex,sets])=>{
-    const m=muscleOf(ex);if(m==='Compound')return;
+    let m=muscleOf(ex);if(m==='Compound')return;
+    // Merge quad/hamstring/glute into Legs for the chart
+    if(m==='Quads'||m==='Hamstrings'||m==='Glutes')m='Legs';
     if(!muscleVol[m])muscleVol[m]=0;
     sets.forEach(s=>muscleVol[m]+=(+s.w||0)*(+s.r||0));
   }));
@@ -1842,7 +1890,7 @@ function buildExCard(ex,idx,isDone){
       </div>
     </div>`;
   }
-  return`<div class="ex-card">
+  return`<div class="ex-card" data-ex="${ex}">
     <div class="ex-hdr">
       <div style="flex:1;min-width:0"><div class="ex-nm">${ex}</div><div class="ex-mu" style="display:flex;align-items:center;gap:6px">${muscleOf(ex)}${S.ranksEnabled?` <span id="rank-badge-${idx}">${rankBadgeHTML(ex,12)}</span>`:''}</div></div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
@@ -1865,9 +1913,9 @@ function setRow(eIdx,sIdx,last){
   const ls=last?.sets?.[sIdx];
   return`<div class="set-row" id="set-row-${eIdx}-${sIdx}">
     <div class="set-lbl">Set ${sIdx+1}</div>
-    <input class="set-inp" type="number" inputmode="decimal" placeholder="${ls?ls.w:'0'}" id="w-${eIdx}-${sIdx}" min="0" step="2.5" oninput="saveWipInputs()">
+    <input class="set-inp" type="number" inputmode="decimal" placeholder="${ls?ls.w:'0'}" id="w-${eIdx}-${sIdx}" data-si="${sIdx}" data-type="w" min="0" step="2.5" oninput="saveWipInputs()">
     <div class="set-unit">lbs</div>
-    <input class="set-inp" type="number" inputmode="numeric" placeholder="${ls?ls.r:'8'}" id="r-${eIdx}-${sIdx}" min="1" step="1" oninput="saveWipInputs()">
+    <input class="set-inp" type="number" inputmode="numeric" placeholder="${ls?ls.r:'8'}" id="r-${eIdx}-${sIdx}" data-si="${sIdx}" data-type="r" min="1" step="1" oninput="saveWipInputs()">
     <div class="set-unit">reps</div>
     <button onclick="removeSet(${eIdx},${sIdx})" style="background:none;border:none;color:var(--text3);font-size:18px;padding:0 4px;line-height:1;flex-shrink:0" title="Remove set">×</button>
   </div>`;
@@ -1896,30 +1944,46 @@ window.addSet=idx=>{
 function saveWipInputs(){
   if(!S.day)return;
   if(!S.wip[S.day])S.wip[S.day]={};
-  const exList=S.getDayEx(S.day);
-  // Get pending exercises (not done)
-  const pending=exList.filter(ex=>!S.wip[S.day]['__done__'+ex]);
-  pending.forEach((ex,i)=>{
-    const sets=[];let si=0;
-    while(true){
-      const wi=document.getElementById('w-'+i+'-'+si);
-      const ri=document.getElementById('r-'+i+'-'+si);
-      if(!wi)break;
-      const w=parseFloat(wi.value)||0;const r=parseInt(ri.value)||0;
+  // Find all exercise cards with data-ex; read their set inputs by data-si/data-type
+  document.querySelectorAll('.ex-card[data-ex]').forEach(function(card){
+    const ex=card.dataset.ex;
+    if(!ex||S.wip[S.day]['__done__'+ex])return;
+    const wInputs=card.querySelectorAll('[data-type="w"]');
+    const rInputs=card.querySelectorAll('[data-type="r"]');
+    const sets=[];
+    wInputs.forEach(function(wi,i){
+      const ri=rInputs[i];
+      const w=parseFloat(wi.value)||0;
+      const r=ri?parseInt(ri.value)||0:0;
       if(w>0||r>0)sets.push({w:w||0,r:r||0});
-      si++;
-    }
+    });
     if(sets.length)S.wip[S.day][ex]=sets;
   });
+  DB.set('fg_wip',S.wip);
 }
 
 window.logEx=(ex,idx)=>{
-  const sets=[];let i=0;
-  while(true){
-    const wi=document.getElementById(`w-${idx}-${i}`);const ri=document.getElementById(`r-${idx}-${i}`);
-    if(!wi)break;
-    const w=parseFloat(wi.value||wi.placeholder)||0;const r=parseInt(ri.value||ri.placeholder)||0;
-    if(w>0&&r>0)sets.push({w,r});i++;
+  // Read inputs from the card with matching data-ex (immune to DOM reordering)
+  const card=document.querySelector('.ex-card[data-ex="'+ex+'"]');
+  const sets=[];
+  if(card){
+    const wInputs=card.querySelectorAll('[data-type="w"]');
+    const rInputs=card.querySelectorAll('[data-type="r"]');
+    wInputs.forEach(function(wi,i){
+      const ri=rInputs[i];
+      const w=parseFloat(wi.value||wi.placeholder)||0;
+      const r=ri?parseInt(ri.value||ri.placeholder)||0:0;
+      if(w>0&&r>0)sets.push({w,r});
+    });
+  } else {
+    // Fallback: read by numeric id
+    let i=0;
+    while(true){
+      const wi=document.getElementById('w-'+idx+'-'+i);const ri=document.getElementById('r-'+idx+'-'+i);
+      if(!wi)break;
+      const w=parseFloat(wi.value||wi.placeholder)||0;const r=parseInt(ri.value||ri.placeholder)||0;
+      if(w>0&&r>0)sets.push({w,r});i++;
+    }
   }
   if(!sets.length){alert('Enter weight & reps first!');return}
   // Save sets to wip so they persist if user navigates away
@@ -1969,14 +2033,16 @@ window.logEx=(ex,idx)=>{
 
 // After logging: re-render workout in place so done card appears immediately
 window.refreshAfterLog=function(){
-  // Small delay so iOS finishes sheet close animation before we rebuild
-  setTimeout(function(){
+  function doRebuild(){
     const sc=document.getElementById('screen');
     if(!sc||!S.day)return;
-    const scrollTop=sc.scrollTop;
+    const st=sc.scrollTop;
     buildWorkout(sc);
-    sc.scrollTop=scrollTop;
-  },80);
+    sc.scrollTop=st;
+  }
+  // Try immediately (works when screen is visible), then again after sheet animation
+  doRebuild();
+  setTimeout(doRebuild,200);
 };
 
 window.finishWorkout=function(){
