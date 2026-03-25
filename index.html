@@ -345,36 +345,120 @@ function getActiveSplit(sName){
 // Groups by muscle/movement type
 const ALL_EX={
   Chest:[
-    'Bench Press','Incline Smith Machine','Incline Bench Press',
-    'Pec Deck','Cable Fly','Chest Dips','DB Flat Press'
+    // Barbell
+    'Bench Press','Incline Bench Press','Decline Bench Press','Close Grip Bench',
+    // Smith Machine
+    'Incline Smith Machine','Smith Machine Bench Press','Decline Smith Machine',
+    // Dumbbell
+    'DB Flat Press','DB Incline Press','DB Decline Press',
+    // Fly / Cable
+    'Pec Deck','Cable Fly','Low Cable Fly','High Cable Fly','Cable Crossover',
+    'Chest Fly','Incline DB Fly',
+    // Bodyweight
+    'Chest Dips','Push-Ups','Close Grip Push-Ups',
+    // Other
+    'Landmine Press','Svend Press'
   ],
   Back:[
-    'Lat Pulldown','Upper Back Row','Mid Back Row','Single Arm Row',
-    'Lat Pullover','Shrugs','Pull-Ups'
+    // Pull-Ups & Pulldowns
+    'Pull-Ups','Chin-Ups','Wide Grip Pull-Ups','Neutral Grip Pull-Ups','Assisted Pull-Ups',
+    'Lat Pulldown','Wide Grip Pulldown','Neutral Grip Pulldown','Single Arm Pulldown',
+    // Rows — Barbell
+    'Barbell Row','Pendlay Row','T-Bar Row',
+    // Rows — Dumbbell
+    'Dumbbell Row','Single Arm Row','Meadows Row',
+    // Rows — Cable/Machine
+    'Seated Cable Row','Wide Row','Chest Supported Row','Machine Row','Upper Back Row','Mid Back Row',
+    // Pullover
+    'Lat Pullover','Cable Pullover',
+    // Straight Arm
+    'Straight Arm Pulldown',
+    // Deadlift variants (back-focused)
+    'Deadlift','Sumo Deadlift','Rack Pull',
+    // Traps
+    'Shrugs','Barbell Shrug','DB Shrug','Cable Shrug'
   ],
   Shoulders:[
-    'Shoulder Press','Lateral Raises','Cable Lateral Raise',
-    'Face Pulls','Rear Delt Fly','Arnold Press'
+    // Press — Barbell
+    'Overhead Press','Push Press',
+    // Press — Dumbbell
+    'Seated DB Press','Arnold Press','DB Shoulder Press',
+    // Press — Machine/Smith
+    'Machine Shoulder Press','Smith Machine OHP',
+    // Lateral
+    'Lateral Raises','Cable Lateral Raise','Machine Lateral Raise','Single Arm Cable Lateral Raise',
+    // Front
+    'Front Raises','DB Front Raise','Cable Front Raise','Barbell Front Raise','Plate Front Raise',
+    // Rear Delt
+    'Rear Delt Fly','Reverse Pec Deck','Cable Rear Delt Fly','Machine Rear Delt Fly',
+    // Face Pulls
+    'Face Pulls',
+    // Other
+    'Upright Row','Band Pull-Apart'
   ],
   Biceps:[
-    'Preacher Curl','Hammer Curl','Barbell Curl','Incline DB Curl',
-    'Cable Curl','EZ Bar Curl'
+    // Barbell
+    'Barbell Curl','EZ Bar Curl','Reverse Barbell Curl',
+    // Dumbbell (bilateral)
+    'Dumbbell Curl','Hammer Curl','Zottman Curl','Cross Body Curl',
+    // Dumbbell (single arm)
+    'Single Arm Dumbbell Curl','Single Arm Hammer Curl','Concentration Curl',
+    // Incline
+    'Incline DB Curl','Incline Hammer Curl',
+    // Cable
+    'Cable Curl','Single Arm Cable Curl','Cable Hammer Curl','Rope Hammer Curl',
+    // Machine/Preacher
+    'Preacher Curl','EZ Bar Preacher Curl','Machine Curl','Cable Preacher Curl',
+    // Other
+    'Spider Curl','Reverse Curl'
   ],
   Triceps:[
-    'Cable Overhead Tricep Ext','Tricep Pushdown','Skull Crushers',
-    'Close Grip Bench','Tricep Dips','Overhead DB Ext'
+    // Pushdown — Cable
+    'Tricep Pushdown','Rope Pushdown','Single Arm Tricep Pushdown',
+    // Overhead — Cable
+    'Cable Overhead Tricep Ext','Rope Overhead Tricep Ext','Single Arm Cable Overhead Ext',
+    // Overhead — Dumbbell
+    'Overhead DB Ext','Single Arm Overhead DB Ext',
+    // Skull Crushers
+    'Skull Crushers','EZ Bar Skull Crusher','DB Skull Crusher',
+    // Press variants
+    'Close Grip Bench','JM Press','Tate Press',
+    // Dips & bodyweight
+    'Tricep Dips','Bench Dips','Diamond Push-Ups',
+    // Machine
+    'Machine Tricep Ext','Machine Overhead Tricep Ext',
+    // Kickbacks
+    'Tricep Kickbacks','Single Arm Kickback','Cable Kickback Tricep'
   ],
   Legs:[
-    'Leg Press','Hack Squat','Leg Extension','Hamstring Curl',
-    'Machine Abductor','Machine Adductor','Back Squat',
-    'Romanian Deadlift','Hip Thrust','Calf Raises'
+    // Squat — Barbell
+    'Back Squat','Front Squat','Box Squat','Pause Squat','Tempo Squat',
+    // Squat — Machine/Smith
+    'Smith Machine Squat','Hack Squat','Belt Squat','Goblet Squat',
+    // Press
+    'Leg Press','Single Leg Press',
+    // Isolation Quads
+    'Leg Extension','Single Leg Extension',
+    // Hamstrings
+    'Romanian Deadlift','Stiff Leg Deadlift','Leg Curl','Seated Leg Curl','Single Leg Curl','Nordic Curl','GHR',
+    // Lunges & split squat
+    'Walking Lunges','Reverse Lunges','Bulgarian Split Squat','Step Ups',
+    // Glutes
+    'Hip Thrust','Glute Bridge','Single Leg Hip Thrust','Cable Kickback','Donkey Kicks',
+    // Abductor/Adductor
+    'Machine Abductor','Machine Adductor',
+    // Calves
+    'Calf Raises','Seated Calf Raise','Leg Press Calf Raise','Single Leg Calf Raise','Standing Calf Raise'
   ],
   Core:[
-    'Cable Crunch','Leg Raises','Ab Wheel',
-    'Plank','Hanging Leg Raise','Russian Twists'
+    'Cable Crunch','Machine Crunch','Weighted Sit-Up',
+    'Leg Raises','Hanging Leg Raise','Toes to Bar',
+    'Ab Wheel','Dragon Flag',
+    'Plank','Side Plank',
+    'Russian Twists','Pallof Press','Dead Bug'
   ],
   Cardio:[
-    'Treadmill','Stairmaster','Rowing Machine','Assault Bike','Jump Rope'
+    'Treadmill','Stairmaster','Rowing Machine','Assault Bike','Jump Rope','Cycling'
   ]
 };
 
@@ -431,62 +515,93 @@ function recentlyUsed(currentExs=[], limit=8){
 
 // Muscle mapping (exercise name → muscle group, used for tracking)
 const EX_MUSCLE={
-  // Chest
+  // ── Chest ──
   'Bench Press':'Chest','Incline Bench Press':'Chest','Decline Bench Press':'Chest',
-  'Incline Smith Machine':'Chest','DB Flat Press':'Chest','DB Incline Press':'Chest',
-  'DB Decline Press':'Chest','Chest Fly':'Chest','Incline DB Fly':'Chest',
-  'Cable Fly':'Chest','Low Cable Fly':'Chest','High Cable Fly':'Chest',
-  'Pec Deck':'Chest','Cable Crossover':'Chest','Chest Dips':'Chest',
-  'Push-Ups':'Chest','Close Grip Push-Ups':'Chest','Svend Press':'Chest','Landmine Press':'Chest',
-  // Back
-  'Pull-Ups':'Back','Chin-Ups':'Biceps','Wide Grip Pull-Ups':'Back','Neutral Grip Pull-Ups':'Back',
-  'Assisted Pull-Ups':'Back','Lat Pulldown':'Back','Wide Grip Pulldown':'Back',
-  'Neutral Grip Pulldown':'Back','Barbell Row':'Back','Pendlay Row':'Back',
-  'Dumbbell Row':'Back','Single Arm Row':'Back','Seated Cable Row':'Back','Wide Row':'Back',
-  'T-Bar Row':'Back','Meadows Row':'Back','Chest Supported Row':'Back','Machine Row':'Back',
-  'Straight Arm Pulldown':'Back','Deadlift':'Back','Rack Pull':'Back','Sumo Deadlift':'Back',
-  // Shoulders (all shoulder work maps to single 'Shoulders' group)
-  'Overhead Press':'Shoulders','Seated DB Press':'Shoulders','Arnold Press':'Shoulders',
-  'Machine Shoulder Press':'Shoulders','Smith Machine OHP':'Shoulders',
-  'Lateral Raises':'Shoulders','Cable Lateral Raise':'Shoulders','Machine Lateral Raise':'Shoulders',
-  'Front Raises':'Shoulders','Cable Front Raise':'Shoulders',
-  'Rear Delt Fly':'Shoulders','Reverse Pec Deck':'Shoulders','Face Pulls':'Shoulders',
-  'Band Pull-Apart':'Shoulders','Upright Row':'Traps','Shrugs':'Traps','Barbell Shrug':'Traps',
-  // Biceps
-  'Barbell Curl':'Biceps','EZ Bar Curl':'Biceps','Dumbbell Curl':'Biceps','Hammer Curl':'Biceps',
-  'Incline DB Curl':'Biceps','Preacher Curl':'Biceps','Machine Curl':'Biceps',
-  'Cable Curl':'Biceps','Spider Curl':'Biceps','Concentration Curl':'Biceps',
-  'Cross Body Curl':'Biceps','Reverse Curl':'Biceps','Zottman Curl':'Biceps',
-  'Bicep Curls':'Biceps','Hammer Curls':'Biceps',
-  // Triceps
-  'Tricep Pushdown':'Triceps','Cable Overhead Tricep Ext':'Triceps','Skull Crushers':'Triceps',
-  'EZ Bar Skull Crusher':'Triceps','Close Grip Bench':'Triceps','Tricep Dips':'Triceps',
-  'Overhead DB Ext':'Triceps','Kickbacks':'Triceps','Diamond Push-Ups':'Triceps',
-  'JM Press':'Triceps','Tate Press':'Triceps','Machine Tricep Ext':'Triceps','Overhead Tricep Ext':'Triceps',
-  // Legs
-  'Back Squat':'Quads','Front Squat':'Quads','Goblet Squat':'Quads','Box Squat':'Quads',
-  'Pause Squat':'Quads','Smith Machine Squat':'Quads','Leg Press':'Quads','Hack Squat':'Quads',
-  'Belt Squat':'Quads','Leg Extension':'Quads','Bulgarian Split Squat':'Quads',
-  'Romanian Deadlift':'Hamstrings','Stiff Leg Deadlift':'Hamstrings','Leg Curl':'Hamstrings',
-  'Seated Leg Curl':'Hamstrings','Nordic Curl':'Hamstrings','GHR':'Hamstrings',
-  'Walking Lunges':'Quads','Reverse Lunges':'Glutes','Step Ups':'Glutes','Single Leg Press':'Quads',
-  'Hip Thrust':'Glutes','Glute Bridge':'Glutes','Cable Kickback':'Glutes','Donkey Kicks':'Glutes',
-  'Calf Raises':'Calves','Seated Calf Raise':'Calves','Single Leg Calf Raise':'Calves','Leg Press Calf Raise':'Calves',
-  'Standing Calf Raise':'Calves',
-  // Core
-  'Plank':'Abs','Side Plank':'Abs','Ab Wheel':'Abs','Cable Crunch':'Abs','Machine Crunch':'Abs',
-  'Crunches':'Abs','Leg Raises':'Abs','Hanging Leg Raise':'Abs','Toes to Bar':'Abs',
-  'Russian Twists':'Abs','Pallof Press':'Abs','Dead Bug':'Abs','Dragon Flag':'Abs',
-  'Weighted Sit-Up':'Abs',
-  // Traps
-  'Face Pulls':'Shoulders','Barbell Row':'Back','Shrugs':'Traps',
-  // New named exercises
+  'Incline Smith Machine':'Chest','Smith Machine Bench Press':'Chest','Decline Smith Machine':'Chest',
+  'DB Flat Press':'Chest','DB Incline Press':'Chest','DB Decline Press':'Chest',
+  'Chest Fly':'Chest','Incline DB Fly':'Chest',
+  'Cable Fly':'Chest','Low Cable Fly':'Chest','High Cable Fly':'Chest','Cable Crossover':'Chest',
+  'Pec Deck':'Chest','Chest Dips':'Chest',
+  'Push-Ups':'Chest','Close Grip Push-Ups':'Chest',
+  'Landmine Press':'Chest','Svend Press':'Chest',
+  'Close Grip Bench':'Triceps',
+  // ── Back ──
+  'Pull-Ups':'Back','Chin-Ups':'Biceps','Wide Grip Pull-Ups':'Back',
+  'Neutral Grip Pull-Ups':'Back','Assisted Pull-Ups':'Back',
+  'Lat Pulldown':'Back','Wide Grip Pulldown':'Back',
+  'Neutral Grip Pulldown':'Back','Single Arm Pulldown':'Back',
+  'Barbell Row':'Back','Pendlay Row':'Back','T-Bar Row':'Back',
+  'Dumbbell Row':'Back','Single Arm Row':'Back','Meadows Row':'Back',
+  'Seated Cable Row':'Back','Wide Row':'Back',
+  'Chest Supported Row':'Back','Machine Row':'Back',
   'Upper Back Row':'Back','Mid Back Row':'Back',
+  'Lat Pullover':'Back','Cable Pullover':'Back',
+  'Straight Arm Pulldown':'Back',
+  'Deadlift':'Back','Sumo Deadlift':'Back','Rack Pull':'Back',
+  'Shrugs':'Traps','Barbell Shrug':'Traps','DB Shrug':'Traps','Cable Shrug':'Traps',
+  // ── Shoulders ──
+  'Overhead Press':'Shoulders','Push Press':'Shoulders',
+  'Seated DB Press':'Shoulders','Arnold Press':'Shoulders','DB Shoulder Press':'Shoulders',
+  'Machine Shoulder Press':'Shoulders','Smith Machine OHP':'Shoulders',
   'Shoulder Press':'Shoulders',
+  'Lateral Raises':'Shoulders','Cable Lateral Raise':'Shoulders',
+  'Machine Lateral Raise':'Shoulders','Single Arm Cable Lateral Raise':'Shoulders',
+  'Front Raises':'Shoulders','DB Front Raise':'Shoulders','Cable Front Raise':'Shoulders',
+  'Barbell Front Raise':'Shoulders','Plate Front Raise':'Shoulders',
+  'Rear Delt Fly':'Shoulders','Reverse Pec Deck':'Shoulders',
+  'Cable Rear Delt Fly':'Shoulders','Machine Rear Delt Fly':'Shoulders',
+  'Face Pulls':'Shoulders','Upright Row':'Traps','Band Pull-Apart':'Shoulders',
+  // ── Biceps ──
+  'Barbell Curl':'Biceps','EZ Bar Curl':'Biceps','Reverse Barbell Curl':'Biceps',
+  'Dumbbell Curl':'Biceps','Hammer Curl':'Biceps','Zottman Curl':'Biceps',
+  'Cross Body Curl':'Biceps',
+  'Single Arm Dumbbell Curl':'Biceps','Single Arm Hammer Curl':'Biceps',
+  'Concentration Curl':'Biceps',
+  'Incline DB Curl':'Biceps','Incline Hammer Curl':'Biceps',
+  'Cable Curl':'Biceps','Single Arm Cable Curl':'Biceps',
+  'Cable Hammer Curl':'Biceps','Rope Hammer Curl':'Biceps',
+  'Preacher Curl':'Biceps','EZ Bar Preacher Curl':'Biceps',
+  'Machine Curl':'Biceps','Cable Preacher Curl':'Biceps',
+  'Spider Curl':'Biceps','Reverse Curl':'Biceps',
+  'Bicep Curls':'Biceps','Hammer Curls':'Biceps',
+  // ── Triceps ──
+  'Tricep Pushdown':'Triceps','Rope Pushdown':'Triceps',
+  'Single Arm Tricep Pushdown':'Triceps',
+  'Cable Overhead Tricep Ext':'Triceps','Rope Overhead Tricep Ext':'Triceps',
+  'Single Arm Cable Overhead Ext':'Triceps',
+  'Overhead DB Ext':'Triceps','Single Arm Overhead DB Ext':'Triceps',
+  'Skull Crushers':'Triceps','EZ Bar Skull Crusher':'Triceps','DB Skull Crusher':'Triceps',
+  'JM Press':'Triceps','Tate Press':'Triceps',
+  'Tricep Dips':'Triceps','Bench Dips':'Triceps','Diamond Push-Ups':'Triceps',
+  'Machine Tricep Ext':'Triceps','Machine Overhead Tricep Ext':'Triceps',
+  'Tricep Kickbacks':'Triceps','Single Arm Kickback':'Triceps','Cable Kickback Tricep':'Triceps',
+  'Overhead Tricep Ext':'Triceps','Kickbacks':'Triceps',
+  // ── Quads ──
+  'Back Squat':'Quads','Front Squat':'Quads','Box Squat':'Quads',
+  'Pause Squat':'Quads','Tempo Squat':'Quads',
+  'Smith Machine Squat':'Quads','Hack Squat':'Quads','Belt Squat':'Quads','Goblet Squat':'Quads',
+  'Leg Press':'Quads','Single Leg Press':'Quads',
+  'Leg Extension':'Quads','Single Leg Extension':'Quads',
+  'Walking Lunges':'Quads','Bulgarian Split Squat':'Quads',
+  // ── Hamstrings ──
+  'Romanian Deadlift':'Hamstrings','Stiff Leg Deadlift':'Hamstrings',
+  'Leg Curl':'Hamstrings','Seated Leg Curl':'Hamstrings',
+  'Single Leg Curl':'Hamstrings','Nordic Curl':'Hamstrings','GHR':'Hamstrings',
   'Hamstring Curl':'Hamstrings',
+  // ── Glutes ──
+  'Hip Thrust':'Glutes','Glute Bridge':'Glutes','Single Leg Hip Thrust':'Glutes',
+  'Cable Kickback':'Glutes','Donkey Kicks':'Glutes',
+  'Reverse Lunges':'Glutes','Step Ups':'Glutes',
   'Machine Abductor':'Glutes','Machine Adductor':'Hamstrings',
-  'Lat Pullover':'Back',
-  'Lat Pulldown':'Back',
+  // ── Calves ──
+  'Calf Raises':'Calves','Seated Calf Raise':'Calves',
+  'Leg Press Calf Raise':'Calves','Single Leg Calf Raise':'Calves',
+  'Standing Calf Raise':'Calves',
+  // ── Abs / Core ──
+  'Plank':'Abs','Side Plank':'Abs','Ab Wheel':'Abs',
+  'Cable Crunch':'Abs','Machine Crunch':'Abs','Weighted Sit-Up':'Abs','Crunches':'Abs',
+  'Leg Raises':'Abs','Hanging Leg Raise':'Abs','Toes to Bar':'Abs',
+  'Russian Twists':'Abs','Pallof Press':'Abs','Dead Bug':'Abs','Dragon Flag':'Abs',
 };
 function muscleOf(ex){return EX_MUSCLE[ex]||S.userExInfo[ex]?.muscle||'Compound'}
 
@@ -996,23 +1111,23 @@ window.newExConfirm=function(){
 // Ranks in order, lowest to highest
 const RANKS=[
   {id:'bronze1',   label:'Bronze I',    tier:'Bronze',   n:1, threshold:0},
-  {id:'bronze2',   label:'Bronze II',   tier:'Bronze',   n:2, threshold:70},
-  {id:'bronze3',   label:'Bronze III',  tier:'Bronze',   n:3, threshold:140},
-  {id:'silver1',   label:'Silver I',    tier:'Silver',   n:1, threshold:200},
-  {id:'silver2',   label:'Silver II',   tier:'Silver',   n:2, threshold:270},
-  {id:'silver3',   label:'Silver III',  tier:'Silver',   n:3, threshold:340},
-  {id:'gold1',     label:'Gold I',      tier:'Gold',     n:1, threshold:420},
-  {id:'gold2',     label:'Gold II',     tier:'Gold',     n:2, threshold:500},
-  {id:'gold3',     label:'Gold III',    tier:'Gold',     n:3, threshold:570},
-  {id:'plat1',     label:'Platinum I',  tier:'Platinum', n:1, threshold:620},
-  {id:'plat2',     label:'Platinum II', tier:'Platinum', n:2, threshold:660},
-  {id:'plat3',     label:'Platinum III',tier:'Platinum', n:3, threshold:700},
-  {id:'diamond1',  label:'Diamond I',   tier:'Diamond',  n:1, threshold:740},
-  {id:'diamond2',  label:'Diamond II',  tier:'Diamond',  n:2, threshold:780},
-  {id:'diamond3',  label:'Diamond III', tier:'Diamond',  n:3, threshold:820},
-  {id:'emerald',   label:'Emerald',     tier:'Emerald',  n:0, threshold:860},
-  {id:'elite',     label:'Elite',       tier:'Elite',    n:0, threshold:920},
-  {id:'optimal',   label:'Optimal',     tier:'Optimal',  n:0, threshold:980},
+  {id:'bronze2',   label:'Bronze II',   tier:'Bronze',   n:2, threshold:60},
+  {id:'bronze3',   label:'Bronze III',  tier:'Bronze',   n:3, threshold:120},
+  {id:'silver1',   label:'Silver I',    tier:'Silver',   n:1, threshold:180},
+  {id:'silver2',   label:'Silver II',   tier:'Silver',   n:2, threshold:250},
+  {id:'silver3',   label:'Silver III',  tier:'Silver',   n:3, threshold:320},
+  {id:'gold1',     label:'Gold I',      tier:'Gold',     n:1, threshold:390},
+  {id:'gold2',     label:'Gold II',     tier:'Gold',     n:2, threshold:460},
+  {id:'gold3',     label:'Gold III',    tier:'Gold',     n:3, threshold:530},
+  {id:'plat1',     label:'Platinum I',  tier:'Platinum', n:1, threshold:580},
+  {id:'plat2',     label:'Platinum II', tier:'Platinum', n:2, threshold:630},
+  {id:'plat3',     label:'Platinum III',tier:'Platinum', n:3, threshold:680},
+  {id:'diamond1',  label:'Diamond I',   tier:'Diamond',  n:1, threshold:720},
+  {id:'diamond2',  label:'Diamond II',  tier:'Diamond',  n:2, threshold:760},
+  {id:'diamond3',  label:'Diamond III', tier:'Diamond',  n:3, threshold:800},
+  {id:'emerald',   label:'Emerald',     tier:'Emerald',  n:0, threshold:840},
+  {id:'elite',     label:'Elite',       tier:'Elite',    n:0, threshold:900},
+  {id:'optimal',   label:'Optimal',     tier:'Optimal',  n:0, threshold:960},
 ];
 
 // Rank colors & SVG icons
@@ -1045,63 +1160,210 @@ function rankIcon(tier, size){
 
 // Compute rank score for an exercise from its full history
 // Score = sum of (max_weight * reps) across best set of each session, weighted for recency
-// ── RANK SCORING ──
-// Benchmarks: expected 1RM in lbs for a reference lifter (175lb, 25yo male)
-// [beginner, novice, intermediate, advanced, elite] (roughly ExRx standards)
-const EX_BENCHMARKS={
-  'Bench Press':         [70, 115, 150, 215, 290],
-  'Incline Bench Press': [55,  90, 125, 175, 240],
-  'Incline Smith Machine':[55, 90, 120, 170, 230],
-  'DB Flat Press':       [35,  60,  80, 115, 155],
-  'DB Incline Press':    [30,  50,  70, 100, 140],
-  'Chest Fly':           [20,  35,  50,  70,  95],
-  'Pec Deck':            [50,  85, 115, 160, 215],
-  'Cable Fly':           [25,  45,  60,  85, 115],
-  'Chest Dips':          [0,   15,  45,  85, 135], // added lbs
-  'Pull-Ups':            [0,   10,  35,  70, 110], // added lbs
-  'Lat Pulldown':        [60, 100, 135, 185, 250],
-  'Upper Back Row':      [60, 100, 135, 185, 250],
-  'Mid Back Row':        [55,  90, 125, 175, 235],
-  'Barbell Row':         [75, 125, 165, 235, 315],
-  'Single Arm Row':      [35,  60,  85, 120, 165],
-  'Seated Cable Row':    [50,  85, 115, 165, 220],
-  'Deadlift':            [115, 185, 245, 345, 460],
-  'Lat Pullover':        [35,  55,  75, 110, 150],
-  'Shoulder Press':      [45,  75, 100, 145, 195],
-  'Overhead Press':      [45,  75, 100, 145, 195],
-  'Lateral Raises':      [12,  20,  30,  45,  65],
-  'Cable Lateral Raise': [10,  18,  28,  42,  60],
-  'Face Pulls':          [25,  45,  65,  90, 125],
-  'Arnold Press':        [25,  45,  65,  95, 130],
-  'Rear Delt Fly':       [12,  20,  30,  45,  65],
-  'Barbell Curl':        [35,  60,  80, 115, 155],
-  'Preacher Curl':       [30,  50,  70, 100, 135],
-  'Hammer Curl':         [20,  35,  50,  70,  95],
-  'Incline DB Curl':     [15,  30,  45,  65,  90],
-  'Cable Curl':          [25,  40,  60,  85, 115],
-  'EZ Bar Curl':         [35,  60,  80, 110, 150],
-  'Dumbbell Curl':       [20,  35,  50,  70,  95],
-  'Tricep Pushdown':     [30,  50,  70, 100, 135],
-  'Cable Overhead Tricep Ext':[20,35,55,80,110],
-  'Skull Crushers':      [35,  60,  85, 120, 165],
-  'Overhead DB Ext':     [25,  45,  65,  95, 130],
-  'Close Grip Bench':    [60, 100, 135, 190, 255],
-  'Tricep Dips':         [0,   15,  45,  85, 135],
-  'Back Squat':          [90, 145, 195, 275, 370],
-  'Leg Press':           [160,270, 360, 500, 670],
-  'Hack Squat':          [80, 135, 185, 260, 350],
-  'Leg Extension':       [50,  85, 115, 160, 215],
-  'Hamstring Curl':      [45,  75, 105, 145, 195],
-  'Romanian Deadlift':   [85, 140, 185, 260, 350],
-  'Hip Thrust':          [90, 150, 200, 285, 380],
-  'Bulgarian Split Squat':[40,70,100,145,200],
-  'Walking Lunges':      [0,   40,  80, 130, 185],
-  'Calf Raises':         [80, 135, 185, 260, 350],
-  'Machine Abductor':    [45,  75, 105, 145, 195],
-  'Machine Adductor':    [45,  75, 105, 145, 195],
-};
 
-// Age correction factors (peak strength ~25-35)
+
+// ── RANK SCORING ──
+// Benchmarks: estimated 1RM in lbs for reference lifter (175lb, 25yo male)
+// [beginner, novice, intermediate, advanced, elite]
+// BILATERAL NOTE: dumbbell exercises listed as bilateral (both arms counted together).
+// Single-arm variants have separate entries at roughly 55-60% of bilateral load.
+const EX_BENCHMARKS={
+  // ── CHEST — Barbell ──
+  'Bench Press':            [70,  115, 150, 215, 290],
+  'Incline Bench Press':    [55,   90, 125, 175, 240],
+  'Decline Bench Press':    [75,  120, 160, 225, 305],
+  'Close Grip Bench':       [60,  100, 135, 190, 255],
+  // ── CHEST — Smith Machine ──
+  'Incline Smith Machine':  [55,   90, 120, 170, 230],
+  'Smith Machine Bench Press':[65,105, 140, 200, 270],
+  'Decline Smith Machine':  [70,  110, 145, 210, 280],
+  // ── CHEST — Dumbbell (bilateral = both DBs combined) ──
+  'DB Flat Press':          [50,   80, 110, 160, 215],  // e.g. 2×55lb DBs = 110
+  'DB Incline Press':       [45,   70,  95, 140, 190],
+  'DB Decline Press':       [50,   80, 110, 160, 215],
+  'Chest Fly':              [35,   55,  80, 115, 155],  // bilateral DBs
+  'Incline DB Fly':         [30,   50,  70, 100, 135],
+  // ── CHEST — Cable / Machine ──
+  'Cable Fly':              [30,   55,  80, 115, 155],
+  'Low Cable Fly':          [25,   45,  65,  95, 130],
+  'High Cable Fly':         [25,   45,  65,  95, 130],
+  'Cable Crossover':        [30,   55,  80, 115, 155],
+  'Pec Deck':               [55,   90, 125, 175, 235],
+  // ── CHEST — Bodyweight ──
+  'Chest Dips':             [0,    15,  45,  85, 135],  // added lbs
+  'Push-Ups':               [0,     0,   0,  35,  90],  // added lbs
+  'Close Grip Push-Ups':    [0,     0,   0,  25,  70],
+  // ── CHEST — Other ──
+  'Landmine Press':         [30,   55,  75, 110, 150],
+  'Svend Press':            [10,   20,  35,  55,  80],
+  // ── BACK — Pull-Ups ──
+  'Pull-Ups':               [0,    10,  35,  70, 110],  // added lbs
+  'Chin-Ups':               [0,    15,  40,  75, 120],
+  'Wide Grip Pull-Ups':     [0,     5,  25,  60,  95],
+  'Neutral Grip Pull-Ups':  [0,    10,  35,  70, 110],
+  'Assisted Pull-Ups':      [100,  70,  40,  10,   0],  // assistance lbs (inverted)
+  // ── BACK — Pulldowns ──
+  'Lat Pulldown':           [60,  100, 135, 185, 250],
+  'Wide Grip Pulldown':     [55,   95, 130, 180, 240],
+  'Neutral Grip Pulldown':  [60,  100, 135, 185, 250],
+  'Single Arm Pulldown':    [30,   50,  70,  95, 130],
+  // ── BACK — Rows Barbell ──
+  'Barbell Row':            [75,  125, 165, 235, 315],
+  'Pendlay Row':            [70,  115, 155, 220, 295],
+  'T-Bar Row':              [65,  110, 145, 205, 275],
+  // ── BACK — Rows Dumbbell ──
+  'Dumbbell Row':           [40,   70,  95, 135, 185],  // bilateral
+  'Single Arm Row':         [35,   60,  85, 120, 165],  // one arm
+  'Meadows Row':            [35,   60,  85, 120, 165],
+  // ── BACK — Rows Cable/Machine ──
+  'Seated Cable Row':       [55,   90, 120, 170, 230],
+  'Wide Row':               [50,   85, 115, 160, 215],
+  'Upper Back Row':         [60,  100, 135, 185, 250],
+  'Mid Back Row':           [55,   90, 125, 175, 235],
+  'Chest Supported Row':    [50,   85, 115, 160, 215],
+  'Machine Row':            [60,  100, 135, 185, 250],
+  // ── BACK — Pullover ──
+  'Lat Pullover':           [35,   55,  75, 110, 150],
+  'Cable Pullover':         [30,   50,  70, 100, 135],
+  'Straight Arm Pulldown':  [30,   50,  70, 100, 135],
+  // ── BACK — Deadlift ──
+  'Deadlift':               [115, 185, 245, 345, 460],
+  'Sumo Deadlift':          [115, 185, 245, 345, 460],
+  'Rack Pull':              [135, 215, 285, 395, 530],
+  // ── BACK — Traps ──
+  'Shrugs':                 [95,  155, 210, 295, 395],  // bilateral DBs combined
+  'Barbell Shrug':          [115, 185, 250, 350, 465],
+  'DB Shrug':               [90,  145, 195, 275, 370],
+  'Cable Shrug':            [65,  105, 145, 200, 270],
+  // ── SHOULDERS — Press ──
+  'Overhead Press':         [45,   75, 100, 145, 195],
+  'Shoulder Press':         [45,   75, 100, 145, 195],
+  'Push Press':             [55,   90, 120, 170, 230],
+  'Seated DB Press':        [40,   70,  95, 135, 185],  // bilateral DBs
+  'Arnold Press':           [35,   60,  85, 120, 165],  // bilateral DBs
+  'DB Shoulder Press':      [40,   70,  95, 135, 185],
+  'Machine Shoulder Press': [50,   85, 115, 160, 215],
+  'Smith Machine OHP':      [45,   75, 100, 145, 195],
+  // ── SHOULDERS — Lateral ──
+  'Lateral Raises':         [20,   35,  55,  80, 110],  // bilateral DBs
+  'Cable Lateral Raise':    [15,   30,  45,  65,  90],  // bilateral cables combined
+  'Machine Lateral Raise':  [25,   45,  65,  90, 125],
+  'Single Arm Cable Lateral Raise':[8,15, 25,  35,  50],  // one cable
+  // ── SHOULDERS — Front ──
+  'Front Raises':           [20,   35,  50,  75, 100],  // bilateral DBs
+  'DB Front Raise':         [20,   35,  50,  75, 100],
+  'Cable Front Raise':      [15,   30,  45,  65,  90],
+  'Barbell Front Raise':    [30,   50,  70, 100, 135],
+  'Plate Front Raise':      [25,   45,  65,  90, 120],
+  // ── SHOULDERS — Rear Delt ──
+  'Rear Delt Fly':          [20,   35,  50,  75, 100],  // bilateral DBs
+  'Reverse Pec Deck':       [30,   55,  75, 110, 150],
+  'Cable Rear Delt Fly':    [15,   28,  40,  60,  85],
+  'Machine Rear Delt Fly':  [25,   45,  65,  95, 130],
+  'Face Pulls':             [25,   45,  65,  90, 125],
+  'Upright Row':            [45,   75, 100, 140, 190],
+  // ── BICEPS — Barbell ──
+  'Barbell Curl':           [35,   60,  80, 115, 155],
+  'EZ Bar Curl':            [35,   60,  80, 110, 150],
+  'Reverse Barbell Curl':   [25,   40,  60,  85, 115],
+  // ── BICEPS — Dumbbell bilateral ──
+  'Dumbbell Curl':          [30,   55,  75, 110, 150],  // bilateral (both arms at once)
+  'Hammer Curl':            [30,   55,  75, 110, 150],  // bilateral
+  'Zottman Curl':           [25,   45,  65,  95, 130],  // bilateral
+  'Cross Body Curl':        [25,   45,  65,  90, 125],  // bilateral
+  'Bicep Curls':            [30,   55,  75, 110, 150],
+  'Hammer Curls':           [30,   55,  75, 110, 150],
+  // ── BICEPS — Dumbbell single arm ──
+  'Single Arm Dumbbell Curl':[15,  28,  40,  55,  75],  // one arm
+  'Single Arm Hammer Curl': [15,   28,  40,  55,  75],
+  'Concentration Curl':     [15,   25,  35,  50,  70],
+  // ── BICEPS — Incline ──
+  'Incline DB Curl':        [20,   35,  55,  80, 110],  // bilateral
+  'Incline Hammer Curl':    [20,   35,  55,  80, 110],
+  // ── BICEPS — Cable ──
+  'Cable Curl':             [25,   45,  65,  95, 130],  // bilateral cables combined
+  'Single Arm Cable Curl':  [12,   22,  35,  50,  70],
+  'Cable Hammer Curl':      [25,   45,  65,  95, 130],
+  'Rope Hammer Curl':       [25,   45,  65,  95, 130],
+  // ── BICEPS — Machine/Preacher ──
+  'Preacher Curl':          [30,   50,  70, 100, 135],
+  'EZ Bar Preacher Curl':   [30,   50,  70, 100, 135],
+  'Machine Curl':           [30,   55,  75, 110, 150],
+  'Cable Preacher Curl':    [25,   45,  65,  90, 125],
+  'Spider Curl':            [25,   45,  65,  90, 125],
+  'Reverse Curl':           [25,   40,  60,  85, 115],
+  // ── TRICEPS — Cable Pushdown ──
+  'Tricep Pushdown':        [30,   55,  75, 110, 150],  // bilateral cable
+  'Rope Pushdown':          [30,   55,  75, 110, 150],
+  'Single Arm Tricep Pushdown':[15, 28, 40,  55,  75],
+  // ── TRICEPS — Overhead ──
+  'Cable Overhead Tricep Ext':[25, 45,  65,  95, 130],  // bilateral cable
+  'Rope Overhead Tricep Ext':[25,  45,  65,  95, 130],
+  'Single Arm Cable Overhead Ext':[12,22, 35,  50,  70],
+  'Overhead DB Ext':        [30,   55,  80, 115, 155],  // bilateral (two hands one DB)
+  'Single Arm Overhead DB Ext':[15,28,  40,  60,  80],
+  'Overhead Tricep Ext':    [30,   55,  80, 115, 155],
+  // ── TRICEPS — Skull Crushers ──
+  'Skull Crushers':         [35,   60,  85, 120, 165],
+  'EZ Bar Skull Crusher':   [35,   60,  85, 120, 165],
+  'DB Skull Crusher':       [30,   55,  75, 110, 150],  // bilateral
+  // ── TRICEPS — Press ──
+  'JM Press':               [50,   85, 115, 160, 215],
+  'Tate Press':             [25,   45,  65,  90, 125],
+  // ── TRICEPS — Bodyweight ──
+  'Tricep Dips':            [0,    15,  45,  85, 135],
+  'Bench Dips':             [0,     5,  25,  55,  90],
+  'Diamond Push-Ups':       [0,     0,   0,  25,  65],
+  // ── TRICEPS — Machine ──
+  'Machine Tricep Ext':     [35,   60,  85, 120, 165],
+  'Machine Overhead Tricep Ext':[25,45,  65,  90, 125],
+  // ── TRICEPS — Kickbacks ──
+  'Tricep Kickbacks':       [15,   25,  40,  60,  85],  // bilateral DBs
+  'Single Arm Kickback':    [8,    15,  22,  32,  45],
+  'Cable Kickback Tricep':  [10,   20,  30,  45,  65],
+  'Kickbacks':              [15,   25,  40,  60,  85],
+  // ── QUADS ──
+  'Back Squat':             [90,  145, 195, 275, 370],
+  'Front Squat':            [70,  115, 155, 220, 295],
+  'Box Squat':              [90,  145, 195, 275, 370],
+  'Pause Squat':            [80,  130, 175, 245, 330],
+  'Tempo Squat':            [75,  120, 165, 230, 310],
+  'Smith Machine Squat':    [85,  135, 185, 260, 350],
+  'Hack Squat':             [85,  140, 190, 265, 355],
+  'Belt Squat':             [90,  145, 195, 275, 370],
+  'Goblet Squat':           [35,   60,  85, 125, 170],
+  'Leg Press':              [160, 270, 360, 500, 670],
+  'Single Leg Press':       [85,  140, 190, 265, 355],
+  'Leg Extension':          [55,   90, 120, 170, 230],
+  'Single Leg Extension':   [30,   50,  65,  90, 125],
+  'Walking Lunges':         [0,    40,  80, 130, 185],
+  'Bulgarian Split Squat':  [40,   70, 100, 145, 200],
+  // ── HAMSTRINGS ──
+  'Romanian Deadlift':      [85,  140, 185, 260, 350],
+  'Stiff Leg Deadlift':     [80,  130, 175, 245, 330],
+  'Leg Curl':               [50,   85, 115, 160, 215],
+  'Seated Leg Curl':        [50,   85, 115, 160, 215],
+  'Single Leg Curl':        [25,   45,  60,  85, 115],
+  'Nordic Curl':            [0,     0,  20,  55,  90],
+  'GHR':                    [0,     5,  25,  55,  90],
+  'Hamstring Curl':         [50,   85, 115, 160, 215],
+  // ── GLUTES ──
+  'Hip Thrust':             [90,  155, 210, 295, 400],
+  'Glute Bridge':           [70,  115, 155, 220, 295],
+  'Single Leg Hip Thrust':  [45,   75, 105, 150, 205],
+  'Cable Kickback':         [15,   25,  40,  60,  85],
+  'Donkey Kicks':           [0,     5,  15,  30,  55],
+  'Reverse Lunges':         [0,    40,  75, 120, 170],
+  'Step Ups':               [0,    35,  65, 110, 160],
+  'Machine Abductor':       [50,   85, 115, 160, 215],
+  'Machine Adductor':       [50,   85, 115, 160, 215],
+  // ── CALVES ──
+  'Calf Raises':            [80,  135, 185, 260, 350],
+  'Seated Calf Raise':      [55,   90, 125, 175, 235],
+  'Leg Press Calf Raise':   [130, 210, 285, 395, 530],
+  'Single Leg Calf Raise':  [0,    20,  55, 100, 150],
+  'Standing Calf Raise':    [80,  135, 185, 260, 350],
+};
 function ageFactor(age){
   if(!age||age<16)return 0.80;
   if(age<20)return 0.90;
@@ -1172,15 +1434,15 @@ function computeRankScore(ex){
 
   // Map to 0-1000:
   // <b0=beginner: 0-150, b0-b1=novice: 150-300, b1-b2=intermediate: 300-500
-  // b2-b3=advanced: 500-720, b3-b4=elite: 720-900, >b4=optimal: 900-980
+  // b2-b3=advanced: 500-720, b3-b4=elite: 720-880, >b4=optimal: 880-960
   let score;
   if(bestOrm<=0)          score=0;
   else if(bestOrm<b0)     score=Math.round((bestOrm/Math.max(b0,1))*150);
   else if(bestOrm<b1)     score=150+Math.round(((bestOrm-b0)/Math.max(b1-b0,1))*150);
   else if(bestOrm<b2)     score=300+Math.round(((bestOrm-b1)/Math.max(b2-b1,1))*200);
   else if(bestOrm<b3)     score=500+Math.round(((bestOrm-b2)/Math.max(b3-b2,1))*220);
-  else if(bestOrm<b4)     score=720+Math.round(((bestOrm-b3)/Math.max(b4-b3,1))*180);
-  else                    score=Math.min(980,900+Math.round(((bestOrm-b4)/Math.max(b4,1))*80));
+  else if(bestOrm<b4)     score=720+Math.round(((bestOrm-b3)/Math.max(b4-b3,1))*160);
+  else                    score=Math.min(960,880+Math.round(((bestOrm-b4)/Math.max(b4,1))*80));
 
   return Math.max(0,score);
 }
@@ -1285,7 +1547,7 @@ window.openRankInfo=function(){
     +'<div style="padding:0 20px">'
     +(ov?'<div style="background:var(--bg3);border-radius:var(--radius3);padding:13px;margin-bottom:16px;border:1px solid var(--border)">'
       +'<div style="font-size:12px;color:var(--text3);margin-bottom:4px">Your overall score</div>'
-      +'<div style="font-size:22px;font-weight:700;color:var(--blue2)">'+ov.score+' / 980 pts</div>'
+      +'<div style="font-size:22px;font-weight:700;color:var(--blue2)">'+ov.score+' / 960 pts</div>'
       +'<div style="font-size:12px;color:var(--text3);margin-top:2px">Average across all tracked exercises</div>'
       +'</div>':'')
     +rows
@@ -2509,7 +2771,7 @@ window.openRankExplorer=function(){
     if(!byTier[rank.tier])byTier[rank.tier]=[];
     byTier[rank.tier].push({ex,score:sc,rank});
   });
-  const tierOrder=['Optimal','Emerald','Elite','Diamond','Platinum','Gold','Silver','Bronze'];
+  const tierOrder=['Optimal','Elite','Emerald','Diamond','Platinum','Gold','Silver','Bronze'];
   var rows='';
   tierOrder.forEach(function(tier){
     if(!byTier[tier])return;
@@ -2527,7 +2789,7 @@ window.openRankExplorer=function(){
         +'</div>'
         +'<div style="text-align:right">'
           +'<div style="font-size:12px;font-weight:700;color:'+s.color+'">'+item.rank.label+'</div>'
-          +'<div style="font-size:11px;color:var(--text3)">'+item.score+' / 980 pts</div>'
+          +'<div style="font-size:11px;color:var(--text3)">'+item.score+' / 960 pts</div>'
         +'</div>'
       +'</div>';
     });
