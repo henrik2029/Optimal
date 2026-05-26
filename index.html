@@ -245,8 +245,25 @@ const S={
   getPR(ex){
     let pr=null;
     this.exHist(ex).forEach(e=>e.sets.forEach(s=>{
-      const v=(+s.w||0)*(+s.r||0);if(v>0&&(!pr||v>pr.v))pr={w:+s.w,r:+s.r,v,date:e.date};
+      const w=+s.w;const r=+s.r||0;
+      if(r<=0)return;
+      if(w>0){
+        // Weighted: PR = heaviest weight lifted (with valid reps)
+        // If same weight, prefer more reps
+        if(!pr||w>pr.w||(w===pr.w&&r>pr.r))pr={w,r,v:w,date:e.date};
+      } else {
+        // Bodyweight: PR = most reps
+        if(!pr||pr.w>0)return; // don't replace a weighted PR with BW
+        if(r>pr.r)pr={w:0,r,v:0,date:e.date};
+      }
     }));
+    // If no weighted PR exists, find best BW reps
+    if(!pr){
+      this.exHist(ex).forEach(e=>e.sets.forEach(s=>{
+        const w=+s.w;const r=+s.r||0;
+        if(w===0&&r>0&&(!pr||r>pr.r))pr={w:0,r,v:0,date:e.date};
+      }));
+    }
     return pr;
   },
   weekLogs(){
@@ -257,7 +274,11 @@ const S={
     const diff=now.getDate()-(day===0?6:day-1);
     const mon=new Date(now.getFullYear(),now.getMonth(),diff);
     mon.setHours(0,0,0,0);
-    return Object.entries(all).filter(([d])=>new Date(d)>=mon);
+    // Parse date strings as LOCAL time (YYYY-MM-DD) to avoid UTC offset shifting Monday into Sunday
+    return Object.entries(all).filter(([d])=>{
+      const [y,m,dd]=d.split('-').map(Number);
+      return new Date(y,m-1,dd)>=mon;
+    });
   },
   getDayEx(day){
     const u=this.u();if(!u)return[];
@@ -1365,28 +1386,32 @@ const EX_BENCHMARKS={
   'Standing Calf Raise':    [80,  135, 185, 260, 350],
 };
 function ageFactor(age){
-  if(!age||age<16)return 0.80;
-  if(age<20)return 0.90;
-  if(age<25)return 0.97;
+  if(!age||age<16)return 0.82;
+  if(age<20)return 0.92;
+  if(age<25)return 0.98;
   if(age<=35)return 1.00;
   if(age<=45)return 0.95;
   if(age<=55)return 0.88;
-  return 0.80;
+  if(age<=65)return 0.80;
+  return 0.72;
 }
 
-// Bodyweight scaling: expected strength scales with bw^0.67 (allometric)
+// Bodyweight scaling: heavier lifters move more weight, so scale benchmarks UP for heavier people
+// Uses allometric scaling (strength ~ bw^0.67 is the standard in powerlifting)
 function bwFactor(bwLbs){
-  const ref=175; // reference bodyweight in lbs
+  const ref=175; // reference bodyweight in lbs (~79kg, average male)
   if(!bwLbs||bwLbs<80)return 1.0;
-  return Math.pow(ref/bwLbs, 0.67);
+  // Benchmarks are set for ~175lb lifter; adjust expected weights proportionally
+  return Math.pow(bwLbs/ref, 0.67);
 }
 
-// Height factor: taller lifters have longer range of motion, slight disadvantage
+// Height factor: taller lifters have longer range of motion — slight disadvantage on most lifts
 function htFactor(htIn){
   const ref=69; // 5'9" reference
   if(!htIn||htIn<50)return 1.0;
   const diff=htIn-ref;
-  return 1 - diff*0.003; // ~0.3% per inch difference, capped reasonably
+  // ~0.4% per inch taller (taller = harder), capped at ±12%
+  return Math.max(0.88, Math.min(1.12, 1 - diff*0.004));
 }
 
 // Compute 0-1000 rank score: how strong is user on this exercise relative to their body?
@@ -1396,53 +1421,74 @@ function computeRankScore(ex){
 
   // Find best single-rep-max estimate across all history
   let bestOrm=0;
+  let bestBWreps=0; // track best reps for bodyweight exercises
   hist.forEach(function(session){
     if(!session||!session.sets)return;
     session.sets.forEach(function(s){
-      const w=+s.w||0; const r=+s.r||1;
-      if(!w)return;
-      // Epley formula: estimated 1RM = w*(1 + r/30), capped at r=12 for reliability
-      const orm=r<=1?w:w*(1+Math.min(r,12)/30);
-      if(orm>bestOrm)bestOrm=orm;
+      const w=+s.w; const r=+s.r||1;
+      if(w>0){
+        // Epley formula: estimated 1RM = w*(1 + r/30), capped at r=12 for reliability
+        const orm=r<=1?w:w*(1+Math.min(r,12)/30);
+        if(orm>bestOrm)bestOrm=orm;
+      } else {
+        // Bodyweight set: track best reps
+        if(r>bestBWreps)bestBWreps=r;
+      }
     });
   });
-  if(!bestOrm)return 0;
 
   // Get user stats
   const u=S.u();
   const bw=parseFloat(u?.weight)||175;
+  // Convert weight to lbs if stored in kg
+  const bwLbs=(u?.weightUnit==='kg')?bw*2.205:bw;
   const age=calcAge(u?.birthday)||25;
   const htRaw=u?.height?parseInt(u.height):69;
   const ht=u?.heightUnit==='ft'?htRaw:Math.round(htRaw/2.54); // convert cm to inches if needed
 
-  // Adjust expected benchmarks for this user's body
-  const bf=bwFactor(bw);
+  const bf=bwFactor(bwLbs);
   const af=ageFactor(age);
   const hf=htFactor(ht);
+  // Combined adjustment: scale benchmarks for this user's body
   const bodyAdj=bf*af*hf;
 
   const bench=EX_BENCHMARKS[ex];
-  if(!bench){
-    // Unknown exercise: compare against generic strength curve
-    // Use a rough expected 1RM of 1.0x bodyweight as intermediate benchmark
-    const expInter=bw*bodyAdj;
-    return Math.min(980, Math.max(0, Math.round((bestOrm/expInter)*450)));
+
+  // Handle pure bodyweight exercises (no weight logged)
+  if(!bestOrm&&bestBWreps>0){
+    if(!bench){
+      // No benchmark: score based on rep count alone (20+ reps = strong)
+      return Math.min(960, Math.round((bestBWreps/20)*500));
+    }
+    // Convert BW reps to an estimated 1RM equivalent using user's bodyweight
+    // e.g. 10 pull-ups ≈ lifting your bodyweight for 10 reps
+    const bwOrm=bwLbs*(1+Math.min(bestBWreps,12)/30);
+    bestOrm=bwOrm;
   }
 
-  // Scale all benchmarks for this user
+  if(!bestOrm)return 0;
+
+  if(!bench){
+    // Unknown exercise: use 1.0x bodyweight as the "intermediate" benchmark
+    const expInter=bwLbs*bodyAdj;
+    return Math.min(960, Math.max(0, Math.round((bestOrm/expInter)*400)));
+  }
+
+  // Scale all benchmarks for this user's body
   const [b0,b1,b2,b3,b4]=bench.map(function(x){return x*bodyAdj;});
 
-  // Map to 0-1000:
+  // Map to 0-960:
   // <b0=beginner: 0-150, b0-b1=novice: 150-300, b1-b2=intermediate: 300-500
   // b2-b3=advanced: 500-720, b3-b4=elite: 720-880, >b4=optimal: 880-960
   let score;
   if(bestOrm<=0)          score=0;
+  else if(b0<=0&&bestOrm>0) score=150; // bodyweight exercise, any weight logged = at least novice
   else if(bestOrm<b0)     score=Math.round((bestOrm/Math.max(b0,1))*150);
   else if(bestOrm<b1)     score=150+Math.round(((bestOrm-b0)/Math.max(b1-b0,1))*150);
   else if(bestOrm<b2)     score=300+Math.round(((bestOrm-b1)/Math.max(b2-b1,1))*200);
   else if(bestOrm<b3)     score=500+Math.round(((bestOrm-b2)/Math.max(b3-b2,1))*220);
   else if(bestOrm<b4)     score=720+Math.round(((bestOrm-b3)/Math.max(b4-b3,1))*160);
-  else                    score=Math.min(960,880+Math.round(((bestOrm-b4)/Math.max(b4,1))*80));
+  else                    score=Math.min(960,880+Math.round(((bestOrm-b4)/Math.max(b4*0.3,1))*80));
 
   return Math.max(0,score);
 }
@@ -1574,10 +1620,21 @@ function renderTab(){
   ({profile:buildProfile,split:buildSplit,exercises:buildExercises,settings:buildSettings}[S.tab]||buildProfile)(sc);
 }
 function checkMonday(){
-  if(new Date().getDay()!==1)return;
-  const key='fg_wk_'+new Date().toISOString().slice(0,10);
+  const now=new Date();
+  if(now.getDay()!==1)return;
+  // Only trigger once per Monday, and only after 4am (not midnight edge cases)
+  const key='fg_wk_'+now.toISOString().slice(0,10);
   if(DB.get(key,false))return;
   DB.set(key,true);
+  // Clear any leftover WIP from last week so stale done-state doesn't bleed in
+  if(S.current&&S.wip){
+    const today=now.toISOString().slice(0,10);
+    Object.keys(S.wip).forEach(day=>{
+      const wipDate=S.wip[day]?.['__date__'];
+      if(wipDate&&wipDate!==today){delete S.wip[day];}
+    });
+    DB.set('fg_wip',S.wip);
+  }
   setTimeout(showWeekly,700);
 }
 
@@ -1699,7 +1756,7 @@ window.openMuscleDetail=m=>{
     </div>
     <div style="font-size:13px;color:var(--text2);background:var(--bg3);border-radius:11px;padding:13px;margin-bottom:14px;line-height:1.6;border:1px solid var(--border)">${insight}</div>
     <div class="sec-lbl" style="margin-bottom:10px">Exercises</div>
-    ${allExs.map(e=>{const p=S.getPR(e);return`<div class="mdet-row"><span style="font-size:14px">${e}</span>${p?`<span style="font-size:12px;color:var(--blue2);font-weight:600">${p.w}lbs PR</span>`:`<span style="font-size:12px;color:var(--text3)">No data</span>`}</div>`}).join('')}
+    ${allExs.map(e=>{const p=S.getPR(e);return`<div class="mdet-row"><span style="font-size:14px">${e}</span>${p?`<span style="font-size:12px;color:var(--blue2);font-weight:600">${+p.w===0?'BW×'+p.r+' reps':p.w+'lbs PR'}</span>`:`<span style="font-size:12px;color:var(--text3)">No data</span>`}</div>`}).join('')}
     <div style="height:16px"></div>
   </div>`);
 };
@@ -1713,6 +1770,8 @@ function analyticsCard(){
   };
   const ms=['Chest','Back','Shoulders','Legs','Biceps','Triceps','Calves','Abs'];
   const wk=S.weekLogs();
+  const u2=S.u();const bwRaw=parseFloat(u2?.weight)||175;
+  const bwLbs=(u2?.weightUnit==='kg')?bwRaw*2.205:bwRaw;
   const muscleVol={};
   // Merge quad/hamstring/glute → Legs; everything else stays as-is
   wk.forEach(([,day])=>Object.entries(day).forEach(([ex,sets])=>{
@@ -1720,7 +1779,11 @@ function analyticsCard(){
     if(m==='Quads'||m==='Hamstrings'||m==='Glutes')m='Legs';
     if(!ms.includes(m))return; // skip muscles not in display list
     if(!muscleVol[m])muscleVol[m]=0;
-    sets.forEach(s=>muscleVol[m]+=(+s.w||0)*(+s.r||0));
+    sets.forEach(s=>{
+      // For weighted sets use w*r; for bodyweight use reps * user's bodyweight as an approximation
+      const w=+s.w;const r=+s.r||0;
+      muscleVol[m]+= w>0 ? w*r : r*(bwLbs*0.7); // bodyweight exercises: ~70% of BW is the load
+    });
   }));
   const rows=ms.map(m=>{
     const v=muscleVol[m]||0;
@@ -2091,6 +2154,16 @@ function buildWorkout(el){
   const exList=S.getDayEx(S.day);
   if(!S.wip[S.day])S.wip[S.day]={};
 
+  // Clear stale wip if it was saved on a different date (don't carry over done-state from previous sessions)
+  const today=new Date().toISOString().slice(0,10);
+  const wipDate=S.wip[S.day]['__date__'];
+  if(wipDate&&wipDate!==today){
+    S.wip[S.day]={};
+    DB.set('fg_wip',S.wip);
+  }
+  // Stamp the current date so we can detect staleness next time
+  if(!wipDate){S.wip[S.day]['__date__']=today;DB.set('fg_wip',S.wip);}
+
   // Split into pending and done for this session
   const pending=exList.filter(ex=>!S.wip[S.day]['__done__'+ex]);
   const done=exList.filter(ex=>!!S.wip[S.day]['__done__'+ex]);
@@ -2139,7 +2212,7 @@ function buildExCard(ex,idx,isDone){
   if(isDone){
     // Show as completed - collapsed, green border, sets summary
     const doneSets=S.wip[S.day]?.[ex]||[];
-    const summary=doneSets.length?doneSets.map(s=>s.w+'lbs×'+s.r).join(' | '):'Logged';
+    const summary=doneSets.length?doneSets.map(s=>(+s.w===0?'BW':''+s.w+'lbs')+'×'+s.r).join(' | '):'Logged';
     return`<div class="ex-card done">
       <div class="ex-hdr" style="cursor:default">
         <div style="flex:1;min-width:0">
@@ -2155,12 +2228,12 @@ function buildExCard(ex,idx,isDone){
       <div style="flex:1;min-width:0"><div class="ex-nm">${ex}</div><div class="ex-mu" style="display:flex;align-items:center;gap:6px">${muscleOf(ex)}${S.ranksEnabled?` <span id="rank-badge-${idx}">${rankBadgeHTML(ex,12)}</span>`:''}</div></div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
         ${(()=>{if(!S.ranksEnabled)return'';const _sc=computeRankScore(ex);if(!_sc)return'';const _rk=getRankForScore(_sc);return _rk?rankIcon(_rk.tier,20):'';})()}
-        <div id="pr-badge-${idx}">${pr?`<span class="pr-badge">🏆 ${pr.w}lbs</span>`:''}</div>
+        <div id="pr-badge-${idx}">${pr?`<span class="pr-badge">🏆 ${+pr.w===0?'BW×'+pr.r+' reps':pr.w+'lbs'}</span>`:''}</div>
         <div class="chev">${IC.chevD}</div>
       </div>
     </div>
     <div class="ex-body">
-      ${last?`<div class="prev-box" id="prev-box-${idx}">Last: ${last.sets.map(s=>`${s.w}lbs×${s.r}`).join(' | ')}<br><span style="font-size:11px;color:var(--text3)">${last.date}</span></div>`:'<div class="prev-box" id="prev-box-${idx}" style="color:var(--text3)">First time — no previous data.</div>'}
+      ${last?`<div class="prev-box" id="prev-box-${idx}">Last: ${last.sets.map(s=>`${+s.w===0?'BW':''+s.w+'lbs'}×${s.r}`).join(' | ')}<br><span style="font-size:11px;color:var(--text3)">${last.date}</span></div>`:'<div class="prev-box" id="prev-box-${idx}" style="color:var(--text3)">First time — no previous data.</div>'}
       <div id="sets-${idx}">${[0].map(s=>setRow(idx,s,last)).join('')}</div>
       <button class="add-set-btn" onclick="addSet(${idx})">+ Add Set</button>
       ${tip?`<div class="tip-box"><div style="font-size:18px;flex-shrink:0">💡</div><div class="tip-txt">${tip}</div></div>`:''}
@@ -2204,6 +2277,8 @@ window.addSet=idx=>{
 function saveWipInputs(){
   if(!S.day)return;
   if(!S.wip[S.day])S.wip[S.day]={};
+  // Stamp today's date so stale WIP can be detected next session
+  S.wip[S.day]['__date__']=new Date().toISOString().slice(0,10);
   // Find all exercise cards with data-ex; read their set inputs by data-si/data-type
   document.querySelectorAll('.ex-card[data-ex]').forEach(function(card){
     const ex=card.dataset.ex;
@@ -2231,9 +2306,12 @@ window.logEx=(ex,idx)=>{
     const rInputs=card.querySelectorAll('[data-type="r"]');
     wInputs.forEach(function(wi,i){
       const ri=rInputs[i];
-      const w=parseFloat(wi.value||wi.placeholder)||0;
-      const r=ri?parseInt(ri.value||ri.placeholder)||0:0;
-      if(w>0&&r>0)sets.push({w,r});
+      // Allow w=0 (bodyweight/no-weight exercises) — only require reps > 0
+      const wVal=wi.value!==''?parseFloat(wi.value):wi.placeholder!==''?parseFloat(wi.placeholder):null;
+      const rVal=ri?(ri.value!==''?parseInt(ri.value):ri.placeholder!==''?parseInt(ri.placeholder):null):null;
+      const w=wVal!==null&&!isNaN(wVal)?wVal:null;
+      const r=rVal!==null&&!isNaN(rVal)?rVal:0;
+      if(w!==null&&r>0)sets.push({w,r});
     });
   } else {
     // Fallback: read by numeric id
@@ -2241,11 +2319,13 @@ window.logEx=(ex,idx)=>{
     while(true){
       const wi=document.getElementById('w-'+idx+'-'+i);const ri=document.getElementById('r-'+idx+'-'+i);
       if(!wi)break;
-      const w=parseFloat(wi.value||wi.placeholder)||0;const r=parseInt(ri.value||ri.placeholder)||0;
-      if(w>0&&r>0)sets.push({w,r});i++;
+      const wVal=wi.value!==''?parseFloat(wi.value):wi.placeholder!==''?parseFloat(wi.placeholder):null;
+      const w=wVal!==null&&!isNaN(wVal)?wVal:null;
+      const r=parseInt(ri.value||ri.placeholder)||0;
+      if(w!==null&&r>0)sets.push({w,r});i++;
     }
   }
-  if(!sets.length){alert('Enter weight & reps first!');return}
+  if(!sets.length){alert('Enter reps first!');return}
   // Save sets to wip so they persist if user navigates away
   if(!S.wip[S.day])S.wip[S.day]={};
   S.wip[S.day][ex]=sets;
@@ -2258,9 +2338,13 @@ window.logEx=(ex,idx)=>{
   // Update rank
   const rankResult=updateExRank(ex);
   const rankUpInfo=rankResult;
-  const newBest=sets.reduce((b,s)=>Math.max(b,s.w*s.r),0);
-  // True PR: logged something AND it beats the previous best (or is first ever)
-  const isPR=newBest>0&&(!oldPR||newBest>oldPR.v);
+  const newBestW=sets.reduce((b,s)=>Math.max(b,+s.w||0),0);
+  const newBestR=sets.reduce((b,s)=>Math.max(b,+s.r||0),0);
+  // True PR: new heaviest weight, OR (for BW exercise) new most reps
+  const isPR=!oldPR
+    ||(newBestW>0&&newBestW>oldPR.w)
+    ||(newBestW===oldPR.w&&newBestR>oldPR.r)
+    ||(newBestW===0&&oldPR.w===0&&newBestR>oldPR.r);
   const rankUp=rankUpInfo&&rankUpInfo.rankUp;
   // Store so the Done button can refresh the card
   window._lastLoggedEx=ex;window._lastLoggedIdx=idx;
@@ -2284,7 +2368,7 @@ window.logEx=(ex,idx)=>{
   </div>
   <div style="padding:0 20px">
     <div style="background:var(--bg3);border-radius:11px;padding:14px;border:1px solid var(--border);margin-bottom:16px">
-      ${sets.map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text3)">Set ${i+1}</span><strong>${s.w}lbs × ${s.r} reps</strong></div>`).join('')}
+      ${sets.map((s,i)=>`<div style="display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-size:14px"><span style="color:var(--text3)">Set ${i+1}</span><strong>${+s.w===0?'Bodyweight':s.w+'lbs'} × ${s.r} reps</strong></div>`).join('')}
     </div>
     <button onclick="closeSheet();refreshAfterLog();" class="log-btn" style="margin-top:0">Done</button>
     <div style="height:12px"></div>
@@ -2328,11 +2412,21 @@ window.finishWorkout=function(){
 
 function getOverloadTip(hist){
   if(!hist.length)return null;
-  // Always show a suggestion based on last session even if only 1 session logged
   const last=hist[0];
   const lastMax=Math.max(...last.sets.map(s=>+s.w||0));
-  const lastReps=last.sets.length?last.sets[0].r:8;
-  if(!lastMax)return null;
+  const lastReps=last.sets.length?+last.sets[0].r:8;
+  const isBW=lastMax===0;
+  if(isBW){
+    // Bodyweight exercise — suggest more reps or adding weight
+    if(hist.length>=4){
+      const recentMaxReps=Math.max(...hist.slice(0,3).flatMap(h=>h.sets.map(s=>+s.r||0)));
+      const olderMaxReps=Math.max(...hist.slice(3,6).flatMap(h=>h.sets.map(s=>+s.r||0)));
+      if(recentMaxReps<=olderMaxReps){
+        return'Plateau — try slowing reps (3-second eccentric) or add weight (belt/vest).';
+      }
+    }
+    return'Last session: '+lastReps+' reps. Aim for <strong>'+(lastReps+1)+'+ reps</strong> or add a weight plate.';
+  }
   const suggested=lastMax+5;
   // If 4+ sessions, detect plateau vs progress
   if(hist.length>=4){
@@ -2727,7 +2821,7 @@ window.savePREdit=function(){
   var ex=window._editPREx;if(!ex)return;
   var w=parseFloat(document.getElementById('pr-edit-w')?.value)||0;
   var r=parseInt(document.getElementById('pr-edit-r')?.value)||0;
-  if(!w||!r){alert('Enter both weight and reps');return;}
+  if(r<=0){alert('Enter reps');return;}
   S.logSets(ex,[{w,r}]);
   drawManagePRs();
 };
@@ -2806,7 +2900,10 @@ window.showWeekly=()=>{
   const mVol={};
   wk.forEach(([,day])=>Object.entries(day).forEach(([ex,sets])=>{
     const m=muscleOf(ex);if(m==='Compound')return;
-    if(!mVol[m])mVol[m]=0;sets.forEach(s=>mVol[m]+=(+s.w||0)*(+s.r||0));
+    if(!mVol[m])mVol[m]=0;
+    const bwRawW=parseFloat(S.u()?.weight)||175;
+    const bwLbsW=(S.u()?.weightUnit==='kg')?bwRawW*2.205:bwRawW;
+    sets.forEach(s=>{const w=+s.w;const r=+s.r||0;mVol[m]+=w>0?w*r:r*(bwLbsW*0.7);});
   }));
   const hasDat=Object.keys(mVol).length>0;
   const ov=document.createElement('div');ov.className='wk-overlay';
